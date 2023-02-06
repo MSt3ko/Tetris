@@ -1,19 +1,58 @@
 import random
-import collections
 import time
 import os
-import sys
 import unittest
 import pygame
-import math
 
-SHAPES = ['I', 'L', 'J', 'O', 'S', 'Z', 'T']
+SHAPES = ['I', 'L', 'J', 'T', 'O', 'S', 'Z']
+NON_SNAKE_SHAPES = ['I', 'L', 'J', 'T', 'O']
+START_SHAPES = ['I', 'L', 'J', 'T']
 POINTS = {0: 0, 1: 100, 2: 300, 3: 500, 4: 800}
 BLOCK_SIZE = 40
 BACKGROUND_COLOR = "#3f4a4e"
 BLOCK_COLOR = "#901b1b"
 TEXT_COLOR = "#FFFFFF"
 SCREEN_COLOR = "#1c2e4a"
+MAX_TETRO = 10000
+MAX_SZ = 4
+MAX_NO_I = 12
+DIVIDER = 1
+MAX_T = 10000
+WIDTH = 10
+HEIGHT = 20
+DAS = 1/5
+AFTER_DAS = 1/40
+
+
+
+def random_generator():
+    s = []
+    sz_counter = 0
+    i_counter = 0
+    s.append(START_SHAPES[random.randrange(0, len(START_SHAPES))])
+    for i in range(MAX_TETRO):
+        if sz_counter < MAX_SZ and i_counter < MAX_NO_I:
+            new_shape = SHAPES[random.randrange(0, len(SHAPES))]
+        elif i_counter >= MAX_NO_I:
+            new_shape = 'I'
+        elif sz_counter >= MAX_SZ:
+            new_shape = NON_SNAKE_SHAPES[random.randrange(0, len(NON_SNAKE_SHAPES))]
+        if new_shape in ['S', 'Z']:
+            sz_counter += 1
+        else:
+            sz_counter = 0
+        if new_shape != 'I':
+            i_counter += 1
+        else:
+            i_counter = 0
+        s.append(new_shape)
+    return s
+
+
+def draw_rect(i, j, surface, color, size=BLOCK_SIZE, divider=DIVIDER):
+    pygame.draw.rect(surface, color,
+                     pygame.Rect(size * (j + 1), size * (i + 1), size - divider,
+                                 size - divider))
 
 
 class Board:
@@ -24,7 +63,7 @@ class Board:
         self.field = [[None for i in range(m)] for j in range(n)]
         self.score = 0
         self.t = 0
-        self.S = [SHAPES[random.randrange(0, 7)] for i in range(10000)]
+        self.S = random_generator()
         self.active = Tetromino(self.S.pop(), self)
         self.rows_total = 0
         self.rows_current = 0
@@ -69,8 +108,9 @@ class Board:
     def progress_time(self):
         if self.game_over():
             raise Exception("GAME OVER")
-            return None
-        if Board.check_landed(self):
+        if self.check_landed():
+            if not self.S:
+                self.S = random_generator()
             self.active = Tetromino(self.S.pop(), self)
             for [x, y] in self.active_squares:
                 # self.filled_squares[x].append(y)  ---- changing filled_squares to field
@@ -86,7 +126,7 @@ class Board:
             #    self.active_squares[i][0] += 1
             self.update_active_view(new_active)
         self.t += 1
-        self.t %= 100000
+        self.t %= MAX_T
 
         return None
 
@@ -138,9 +178,14 @@ class Board:
     def update_active_view(self, new_active):
         for [i, j] in (self.active_squares + new_active):
             if [i, j] not in new_active:
-                pygame.draw.rect(screen, BACKGROUND_COLOR,
-                                 pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                             BLOCK_SIZE - 1))
+                if i < 0:
+                    pygame.draw.rect(screen, SCREEN_COLOR,
+                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
+                                                 BLOCK_SIZE - 1))
+                else:
+                    pygame.draw.rect(screen, BACKGROUND_COLOR,
+                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
+                                                 BLOCK_SIZE - 1))
             if [i, j] in new_active and [i, j] not in self.active_squares:
                 pygame.draw.rect(screen, BLOCK_COLOR,
                                  pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
@@ -148,6 +193,8 @@ class Board:
             self.active_squares = new_active
 
     def rotate(self, direction):
+        if self.active.shape == 'O':
+            return None
         new_active = []
         if direction == "cw":
             for [x, y] in self.active_squares:
@@ -171,6 +218,9 @@ class Board:
             if x < 0:
                 self.move("D")
                 self.rotate(direction)
+                pygame.draw.rect(screen, SCREEN_COLOR,
+                                 pygame.Rect(0, 0, BLOCK_SIZE*WIDTH,
+                                             BLOCK_SIZE))
             if x >= self.height:
                 return None
             if y < 0 or y >= self.width:
@@ -213,10 +263,10 @@ class Board:
     def gravity(self, deleted_row):
         for row in range(deleted_row, 0, -1):
             for col in range(self.width):
-                self.draw_rect(row, col, screen, BACKGROUND_COLOR)
+                draw_rect(row, col, screen, BACKGROUND_COLOR)
                 if self.field[row - 1][col] == 'o' and self.field[row][col] is None:
-                    self.draw_rect(row, col, screen, BLOCK_COLOR)
-                    self.draw_rect(row - 1, col, screen, BACKGROUND_COLOR)
+                    draw_rect(row, col, screen, BLOCK_COLOR)
+                    draw_rect(row - 1, col, screen, BACKGROUND_COLOR)
             self.field[row] = self.field[row - 1]
         self.field[0] = [None for i in range(self.width)]
 
@@ -289,11 +339,6 @@ class Board:
                                      pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
                                                  BLOCK_SIZE - 1))
                 pygame.display.update()
-
-    def draw_rect(self, i, j, surface, color):
-        pygame.draw.rect(surface, color,
-                         pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                     BLOCK_SIZE - 1))
 
 
 # Tetrominos don't exist until they are on the board. The stack of "next brick" is just symbols.
@@ -379,20 +424,43 @@ def play():
     clock = pygame.time.Clock()
     fps = 25
     counter = 0
-    game = Board(height, width)
+    game = Board(HEIGHT, WIDTH)
     pressing_down = False
 
     screen.fill(SCREEN_COLOR)
 
-    pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE, BLOCK_SIZE, game.width * BLOCK_SIZE,
-                                                           game.height * BLOCK_SIZE))
+    # pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE, BLOCK_SIZE, game.width * BLOCK_SIZE,
+    #                                                        game.height * BLOCK_SIZE))
+    for i in range(game.height):
+        for j in range(game.width):
+            pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1),
+                                                                   BLOCK_SIZE - DIVIDER,
+                                                                   BLOCK_SIZE - DIVIDER))
+
     pygame.display.update()
+
+    landed_counter = 1
     while True:
         counter += 1
         counter %= 100000
-        if counter % (fps // 2) == 0:
+        landed_counter %= 100000
+        if counter % (fps // (game.level + 1) // 2) == 0 and not game.check_landed():
             game.progress_time()
+            first_landed = True
+        if game.check_landed():
+            #counter += (fps // (game.level + 1) // 2) - (counter % (fps // (game.level + 1) // 2)) + 1
+            landed_counter += 1
+            print("I'm fucking stupid")
+            first_landed = False
+        if landed_counter % (fps // (game.level + 1) // 4) == 0:
+            print("I ARRIVED")
+            game.progress_time()
+            first_landed = True
+            landed_counter = 1
+            #if game.check_landed():
+                #counter += (fps // (game.level + 1) // 2) - (counter % (fps // (game.level + 1) // 2)) + 1
         for event in pygame.event.get():
+            pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
             # print("EVENT LOOP ENTERED")
             if event.type == pygame.QUIT:
                 # print("I QUIT")
@@ -400,25 +468,34 @@ def play():
             if event.type == pygame.KEYDOWN:
                 # print("KEYDOWN REGISTERED")
                 if event.key == pygame.K_UP:
+                    #pygame.key.set_repeat()
                     # print("UP REGISTERED")
                     game.rotate("cw")
+                    #pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
                 if event.key == pygame.K_LEFT:
                     # print("LEFT REGISTERED")
                     game.move("L")
                 if event.key == pygame.K_RIGHT:
+                    #pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
                     # print("RIGHT REGISTERED")
                     game.move("R")
                 if event.key == pygame.K_DOWN:
+                    #pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
                     # print("DOWN REGISTERED")
                     game.move("D")
                 if event.key == pygame.K_SPACE:
+                    #pygame.key.set_repeat()
                     # print("SPACE REGISTERED")
                     game.move("S")
+                    break
+                pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
                 if event.key == pygame.K_ESCAPE:
                     game.__init__(20, 10)
                 if event.key == pygame.K_q:
                     raise Exception("QUIT GAME")
-        time.sleep(0.05)
+
+
+        #time.sleep(0.05)
         print(game)
 
         for i in range(game.height):
@@ -440,17 +517,18 @@ def play():
 
 
 if __name__ == "__main__":
-    width = 10
-    height = 15
     # test_time()
     pygame.font.init()
-    screen = pygame.display.set_mode(((width + 2) * BLOCK_SIZE, (height + 4) * BLOCK_SIZE))
+    screen_w = (WIDTH + 2) * BLOCK_SIZE
+    screen_h = (HEIGHT + 4) * BLOCK_SIZE
+    screen = pygame.display.set_mode((screen_w, screen_h))
     pygame.display.set_caption("Tetris")
     run = True
     screen.fill(SCREEN_COLOR)
-    font = pygame.font.SysFont("Montserrat", 40, bold=False)
+    font = pygame.font.SysFont("Montserrat", BLOCK_SIZE, bold=False)
     label = font.render("Press any key to play", True, TEXT_COLOR)
-    screen.blit(label, (10, 30))
+    label_rect = label.get_rect(center=(screen_w / 2, screen_h / 2))
+    screen.blit(label, label_rect)
     pygame.display.update()
     while run:
         for event_ in pygame.event.get():
@@ -459,6 +537,3 @@ if __name__ == "__main__":
             if event_.type == pygame.KEYDOWN:
                 play()
     pygame.quit()
-
-# cover the outdated blocks with the background color, and then redraw the active blocks.
-# this way you don't have to refresh everything.
