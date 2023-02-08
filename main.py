@@ -68,7 +68,6 @@ class Board:
         self.rows_total = 0
         self.rows_current = 0
         self.level = 0
-        # self.filled_squares = collections.defaultdict(list)
         match self.active.shape:
             case "I":
                 self.active_squares = [[self.active.loc[0], self.active.loc[1] + i] for i in range(-1, 3)]
@@ -113,17 +112,13 @@ class Board:
                 self.S = random_generator()
             self.active = Tetromino(self.S.pop(), self)
             for [x, y] in self.active_squares:
-                # self.filled_squares[x].append(y)  ---- changing filled_squares to field
                 self.field[x][y] = "o"
-                # print("adding some filled squares:", self.filled_squares)
             self.delete_full_rows()
+            self.update_score()
             self.set_active_squares(self.active.shape)
-            # self.update_screen(BLOCK_SIZE) unnecessary, move to delete_full_rows
         else:
             self.active.loc[0] += 1
             new_active = [[i + 1, j] for [i, j] in self.active_squares]
-            # for i in range(len(self.active_squares)):
-            #    self.active_squares[i][0] += 1
             self.update_active_view(new_active)
         self.t += 1
         self.t %= MAX_T
@@ -131,21 +126,17 @@ class Board:
         return None
 
     def move(self, x):
-        # Try-except obsolete
         match x:
             case "L":
-                # print("BEFORE", self.active_squares)
                 try:
                     new_active = []
                     for [row, col] in self.active_squares:
                         if col == 0 or self.field[row][col - 1] == 'o':
                             return None
                         new_active.append([row, col - 1])
-                        # print("success")
                     self.active.loc[1] -= 1
                 except IndexError:
                     pass
-                # print("AFTER: ", self.active_squares)
             case "R":
                 try:
                     new_active = []
@@ -165,7 +156,6 @@ class Board:
                         new_active.append([row + 1, col])
                     self.active.loc[0] += 1
                     self.update_active_view(new_active)
-                    # return None
                 except IndexError:
                     pass
             case "S":
@@ -225,28 +215,18 @@ class Board:
                 return None
             if y < 0 or y >= self.width:
                 return None
-            # if y in self.filled_squares[x]:
             if self.field[x][y] == 'o' and [x, y] not in self.active_squares:
-                # print("I read the field wrong")
                 return None
-        # print(self.active_squares)
         self.update_active_view(new_active)
-        # print(new_active)
-        # print(self.active_squares)
         return None
 
     def check_landed(self):
         for [x, y] in self.active_squares:
-            # if y in self.filled_squares[x+1] or x == self.height-1:
             if x == self.height - 1 or self.field[x + 1][y] == 'o':
                 return True
         return False
 
     def delete_full_rows(self):
-        # for row in self.filled_squares:
-        #    if len(self.filled_squares[row]) == self.width:
-        #        self.filled_squares[row].clear()
-        #        self.gravity(row)
         rows_deleted = 0
         for row in range(self.height):
             if sum(x is not None for x in self.field[row]) == self.width:
@@ -279,7 +259,6 @@ class Board:
     def __repr__(self):
         return self.field
 
-    # Implement printing. Note field is not really used, only filled_fields.
     def __str__(self):
         board = [" " + "-" * self.width + " "]
         for row in range(self.height):
@@ -329,16 +308,129 @@ class Board:
                                        [self.active.loc[0], self.active.loc[1] + 1],
                                        [self.active.loc[0] - 1, self.active.loc[1] - 1]]
 
-    def update_screen(self, BLOCK_SIZE):
-        pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE, BLOCK_SIZE, self.width * BLOCK_SIZE,
-                                                               self.height * BLOCK_SIZE))
+    def update_screen(self, block_size=BLOCK_SIZE):
+        pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(block_size, block_size, self.width * block_size,
+                                                               self.height * block_size))
         for i in range(self.height):
             for j in range(self.width):
                 if self.field[i][j] is not None or [i, j] in self.active_squares:
                     pygame.draw.rect(screen, BLOCK_COLOR,
-                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                                 BLOCK_SIZE - 1))
+                                     pygame.Rect(block_size * (j + 1), block_size * (i + 1), block_size - 1,
+                                                 block_size - 1))
                 pygame.display.update()
+
+    def update_score(self, block_size=BLOCK_SIZE):
+
+        pygame.draw.rect(screen, SCREEN_COLOR, pygame.Rect(block_size,
+                                                           block_size * (self.height + 2),
+                                                           self.width * block_size,
+                                                           3 * block_size))
+        score_font = pygame.font.SysFont("Montserrat", block_size//2, bold=True)
+        score_text = score_font.render("PTS: ", True, TEXT_COLOR)
+        screen.blit(score_text, (block_size * (2 * self.width // 3 + 2), block_size * (self.height + 2)))
+        pygame.display.update()
+
+        score_value = score_font.render(str(self.score), True, TEXT_COLOR)
+        screen.blit(score_value, (block_size * (2 * self.width // 3 + 3), block_size * (self.height + 2)))
+        pygame.display.update()
+
+
+
+        lvl_value = score_font.render(str(self.level), True, TEXT_COLOR)
+        screen.blit(lvl_value, (block_size * (self.width // 3 + 3), block_size * (self.height + 2)))
+        pygame.display.update()
+
+        next_text = score_font.render("Next: ", True, TEXT_COLOR)
+        screen.blit(next_text, (block_size, block_size * (self.height + 2)))
+        pygame.display.update()
+
+        lvl_text = score_font.render("LVL:", True, TEXT_COLOR)
+        screen.blit(lvl_text, (block_size * (self.width // 3 + 2), block_size * (self.height + 2)))
+        pygame.display.update()
+
+        pygame.draw.rect(screen, SCREEN_COLOR, pygame.Rect(block_size * 2,
+                                                           block_size * (self.height + 1.5),
+                                                           2 * block_size,
+                                                           2 * block_size))
+        self.show_brick(block_size * 2, int(block_size * (self.height + 1.5)), block_size//2)
+
+
+
+        pass
+
+
+    def show_brick(self, left_offset, top_offset, size):
+        match self.S[-1]:
+            case "I":
+                for offset in range(4):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset + size,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+
+            case "O":
+                for offset in range(2):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+                for offset in range(2):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset + size,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+            case "T":
+                pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + size,
+                                                                  top_offset,
+                                                                  size - DIVIDER,
+                                                                  size - DIVIDER))
+                for offset in range(3):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset + size,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+            case "S":
+                for offset in range(2):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + (offset + 1) * size,
+                                                                      top_offset,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+                for offset in range(2):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset + size,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+            case "Z":
+                for offset in range(2):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+                for offset in range(2):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + (offset + 1) * size,
+                                                                      top_offset + size,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+            case "L":
+                pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + 2 * size,
+                                                                  top_offset,
+                                                                  size - DIVIDER,
+                                                                  size - DIVIDER))
+                for offset in range(3):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset + size,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
+            case "J":
+                pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset,
+                                                                  top_offset,
+                                                                  size - DIVIDER,
+                                                                  size - DIVIDER))
+                for offset in range(3):
+                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                                                                      top_offset + size,
+                                                                      size - DIVIDER,
+                                                                      size - DIVIDER))
 
 
 # Tetrominos don't exist until they are on the board. The stack of "next brick" is just symbols.
@@ -425,12 +517,9 @@ def play():
     fps = 25
     counter = 0
     game = Board(HEIGHT, WIDTH)
-    pressing_down = False
 
     screen.fill(SCREEN_COLOR)
 
-    # pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE, BLOCK_SIZE, game.width * BLOCK_SIZE,
-    #                                                        game.height * BLOCK_SIZE))
     for i in range(game.height):
         for j in range(game.width):
             pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1),
@@ -438,7 +527,7 @@ def play():
                                                                    BLOCK_SIZE - DIVIDER))
 
     pygame.display.update()
-
+    game.update_score()
     landed_counter = 1
     while True:
         counter += 1
@@ -448,44 +537,27 @@ def play():
             game.progress_time()
             first_landed = True
         if game.check_landed():
-            #counter += (fps // (game.level + 1) // 2) - (counter % (fps // (game.level + 1) // 2)) + 1
             landed_counter += 1
-            print("I'm fucking stupid")
             first_landed = False
         if landed_counter % (fps // (game.level + 1) // 4) == 0:
-            print("I ARRIVED")
             game.progress_time()
             first_landed = True
             landed_counter = 1
-            #if game.check_landed():
-                #counter += (fps // (game.level + 1) // 2) - (counter % (fps // (game.level + 1) // 2)) + 1
         for event in pygame.event.get():
             pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
-            # print("EVENT LOOP ENTERED")
             if event.type == pygame.QUIT:
-                # print("I QUIT")
                 break
             if event.type == pygame.KEYDOWN:
-                # print("KEYDOWN REGISTERED")
                 if event.key == pygame.K_UP:
-                    #pygame.key.set_repeat()
-                    # print("UP REGISTERED")
                     game.rotate("cw")
-                    #pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
                 if event.key == pygame.K_LEFT:
                     # print("LEFT REGISTERED")
                     game.move("L")
                 if event.key == pygame.K_RIGHT:
-                    #pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
-                    # print("RIGHT REGISTERED")
                     game.move("R")
                 if event.key == pygame.K_DOWN:
-                    #pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
-                    # print("DOWN REGISTERED")
                     game.move("D")
                 if event.key == pygame.K_SPACE:
-                    #pygame.key.set_repeat()
-                    # print("SPACE REGISTERED")
                     game.move("S")
                     break
                 pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
@@ -495,7 +567,6 @@ def play():
                     raise Exception("QUIT GAME")
 
 
-        #time.sleep(0.05)
         print(game)
 
         for i in range(game.height):
@@ -505,19 +576,13 @@ def play():
                                      pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
                                                  BLOCK_SIZE - 1))
                 pygame.display.update()
-                # pygame.draw.rect(screen, '#B2BEB5',
-                #                 [game.x + game.zoom * j, game.y + game.zoom * i, game.zoom, game.zoom], 1)
-                # if game.field[i][j] > 0:
-                #    pygame.draw.rect(screen, shapeColors[game.field[i][j]],
-                #                     [game.x + game.zoom * j + 1, game.y + game.zoom * i + 1, game.zoom - 2,
-                #                      game.zoom - 1])
+
 
 
 # play()
 
 
 if __name__ == "__main__":
-    # test_time()
     pygame.font.init()
     screen_w = (WIDTH + 2) * BLOCK_SIZE
     screen_h = (HEIGHT + 4) * BLOCK_SIZE
