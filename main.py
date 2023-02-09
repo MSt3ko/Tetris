@@ -3,6 +3,7 @@ import time
 import os
 import unittest
 import pygame
+import copy
 
 SHAPES = ['I', 'L', 'J', 'T', 'O', 'S', 'Z']
 NON_SNAKE_SHAPES = ['I', 'L', 'J', 'T', 'O']
@@ -13,6 +14,8 @@ BACKGROUND_COLOR = "#3f4a4e"
 BLOCK_COLOR = "#901b1b"
 TEXT_COLOR = "#FFFFFF"
 SCREEN_COLOR = "#1c2e4a"
+COLORS = {"J": "#1c2e4a", "Z": "#901b1b", "T": "#4a1c45", "S": "#1c4a21", "L": "#C06002", "I": "#02b5c0",
+          "O": "#Bcc002"}
 MAX_TETRO = 70000//7
 MAX_SZ = 4
 MAX_NO_I = 12
@@ -24,8 +27,7 @@ DAS = 1/5
 AFTER_DAS = 1/40
 
 
-
-def random_generator():
+def old_rg():
     s = []
     sz_counter = 0
     i_counter = 0
@@ -46,6 +48,17 @@ def random_generator():
         else:
             i_counter = 0
         s.append(new_shape)
+    return s
+
+
+def random_generator(shapes=SHAPES, start_shapes=START_SHAPES, max_tetro=MAX_TETRO):
+    s = [start_shapes[random.randrange(0, len(start_shapes))]]
+    while len(s) < max_tetro:
+        bag = copy.deepcopy(shapes)
+        while len(bag) > 0:
+            new = bag[random.randrange(0, len(bag))]
+            s.append(new)
+            bag.remove(new)
     return s
 
 
@@ -536,16 +549,6 @@ def play():
         counter += 1
         counter %= 100000
         landed_counter %= 100000
-        #if counter % (fps // (game.level + 1) // 2) == 0 and not game.check_landed():
-        #    game.progress_time()
-        #    first_landed = True
-        #if game.check_landed():
-        #    landed_counter += 1
-        #    first_landed = False
-        #if landed_counter % (fps // (game.level + 1) // 4) == 0:
-        #    game.progress_time()
-        #    first_landed = True
-        #    landed_counter = 1
         if time.time() - loop_time > time_to_drop(game.level):
             game.progress_time()
             loop_time = time.time()
