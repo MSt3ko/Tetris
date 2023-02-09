@@ -10,11 +10,11 @@ NON_SNAKE_SHAPES = ['I', 'L', 'J', 'T', 'O']
 START_SHAPES = ['I', 'L', 'J', 'T']
 POINTS = {0: 0, 1: 100, 2: 300, 3: 500, 4: 800}
 BLOCK_SIZE = 40
-BACKGROUND_COLOR = "#3f4a4e"
+BACKGROUND_COLOR = "#000000"
 BLOCK_COLOR = "#901b1b"
 TEXT_COLOR = "#FFFFFF"
-SCREEN_COLOR = "#1c2e4a"
-COLORS = {"J": "#1c2e4a", "Z": "#901b1b", "T": "#4a1c45", "S": "#1c4a21", "L": "#C06002", "I": "#02b5c0",
+SCREEN_COLOR = "#2a2a29"
+COLORS = {"J": "#3a33e6", "Z": "#901b1b", "T": "#871f84", "S": "#008313", "L": "#C06002", "I": "#02b5c0",
           "O": "#Bcc002"}
 MAX_TETRO = 70000//7
 MAX_SZ = 4
@@ -123,10 +123,11 @@ class Board:
         if self.check_landed():
             if not self.S:
                 self.S = random_generator()
-            self.active = Tetromino(self.S.pop(), self)
+
             for [x, y] in self.active_squares:
-                self.field[x][y] = "o"
+                self.field[x][y] = self.active.shape
             self.delete_full_rows()
+            self.active = Tetromino(self.S.pop(), self)
             self.update_score()
             self.set_active_squares(self.active.shape)
         else:
@@ -144,7 +145,7 @@ class Board:
                 try:
                     new_active = []
                     for [row, col] in self.active_squares:
-                        if col == 0 or self.field[row][col - 1] == 'o':
+                        if col == 0 or self.field[row][col - 1] is not None:
                             return None
                         new_active.append([row, col - 1])
                     self.active.loc[1] -= 1
@@ -154,7 +155,7 @@ class Board:
                 try:
                     new_active = []
                     for [row, col] in self.active_squares:
-                        if col == self.width - 1 or self.field[row][col + 1] == 'o':
+                        if col == self.width - 1 or self.field[row][col + 1] is not None:
                             return None
                         new_active.append([row, col + 1])
                     self.active.loc[1] += 1
@@ -164,7 +165,7 @@ class Board:
                 try:
                     new_active = []
                     for [row, col] in self.active_squares:
-                        if row == self.height - 1 or self.field[row + 1][col] == 'o':
+                        if row == self.height - 1 or self.field[row + 1][col] is not None:
                             return None
                         new_active.append([row + 1, col])
                     self.active.loc[0] += 1
@@ -190,7 +191,7 @@ class Board:
                                      pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
                                                  BLOCK_SIZE - 1))
             if [i, j] in new_active and [i, j] not in self.active_squares:
-                pygame.draw.rect(screen, BLOCK_COLOR,
+                pygame.draw.rect(screen, COLORS[self.active.shape],
                                  pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
                                              BLOCK_SIZE - 1))
             self.active_squares = new_active
@@ -228,14 +229,14 @@ class Board:
                 return None
             if y < 0 or y >= self.width:
                 return None
-            if self.field[x][y] == 'o' and [x, y] not in self.active_squares:
+            if self.field[x][y] is not None and [x, y] not in self.active_squares:
                 return None
         self.update_active_view(new_active)
         return None
 
     def check_landed(self):
         for [x, y] in self.active_squares:
-            if x == self.height - 1 or self.field[x + 1][y] == 'o':
+            if x == self.height - 1 or self.field[x + 1][y] is not None:
                 return True
         return False
 
@@ -249,23 +250,21 @@ class Board:
         self.rows_current += rows_deleted
         if self.rows_current >= min(self.level * 10 + 10, max(100, self.level * 10 - 50)):
             self.level += 1
-        #lvl = font.render("LVL" + str(self.level), True, TEXT_COLOR)
-        #screen.blit(lvl, (10, 30))
         return None
 
     def gravity(self, deleted_row):
         for row in range(deleted_row, 0, -1):
             for col in range(self.width):
                 draw_rect(row, col, screen, BACKGROUND_COLOR)
-                if self.field[row - 1][col] == 'o' and self.field[row][col] is None:
-                    draw_rect(row, col, screen, BLOCK_COLOR)
+                if self.field[row - 1][col] is not None and self.field[row][col] is None:
+                    draw_rect(row, col, screen, COLORS[self.field[row-1][col]])
                     draw_rect(row - 1, col, screen, BACKGROUND_COLOR)
             self.field[row] = self.field[row - 1]
         self.field[0] = [None for i in range(self.width)]
 
     def game_over(self):
         for i in range(self.width // 2 - 2, self.width // 2 + 2):
-            if self.field[0][i] == 'o':
+            if self.field[0][i] is not None:
                 return True
         return False
 
@@ -277,8 +276,10 @@ class Board:
         for row in range(self.height):
             curr_row = ["|"]
             for col in range(self.width):
-                if self.field[row][col] == 'o' or [row, col] in self.active_squares:
-                    curr_row.append("o")
+                if self.field[row][col] is not None:
+                    curr_row.append(self.field[row][col])
+                elif [row, col] in self.active_squares:
+                    curr_row.append(self.active.shape)
                 else:
                     curr_row.append(" ")
             curr_row.append("|")
@@ -327,7 +328,7 @@ class Board:
         for i in range(self.height):
             for j in range(self.width):
                 if self.field[i][j] is not None or [i, j] in self.active_squares:
-                    pygame.draw.rect(screen, BLOCK_COLOR,
+                    pygame.draw.rect(screen, COLORS[self.active.shape],
                                      pygame.Rect(block_size * (j + 1), block_size * (i + 1), block_size - 1,
                                                  block_size - 1))
                 pygame.display.update()
@@ -376,71 +377,71 @@ class Board:
         match self.S[-1]:
             case "I":
                 for offset in range(4):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset + size,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
 
             case "O":
                 for offset in range(2):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
                 for offset in range(2):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset + size,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
             case "T":
-                pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + size,
+                pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + size,
                                                                   top_offset,
                                                                   size - DIVIDER,
                                                                   size - DIVIDER))
                 for offset in range(3):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset + size,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
             case "S":
                 for offset in range(2):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + (offset + 1) * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + (offset + 1) * size,
                                                                       top_offset,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
                 for offset in range(2):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset + size,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
             case "Z":
                 for offset in range(2):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
                 for offset in range(2):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + (offset + 1) * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + (offset + 1) * size,
                                                                       top_offset + size,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
             case "L":
-                pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + 2 * size,
+                pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + 2 * size,
                                                                   top_offset,
                                                                   size - DIVIDER,
                                                                   size - DIVIDER))
                 for offset in range(3):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset + size,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
             case "J":
-                pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset,
+                pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset,
                                                                   top_offset,
                                                                   size - DIVIDER,
                                                                   size - DIVIDER))
                 for offset in range(3):
-                    pygame.draw.rect(screen, BLOCK_COLOR, pygame.Rect(left_offset + offset * size,
+                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
                                                                       top_offset + size,
                                                                       size - DIVIDER,
                                                                       size - DIVIDER))
@@ -580,8 +581,12 @@ def play():
 
         for i in range(game.height):
             for j in range(game.width):
-                if game.field[i][j] is not None or [i, j] in game.active_squares:
-                    pygame.draw.rect(screen, BLOCK_COLOR,
+                if game.field[i][j] is not None:
+                    pygame.draw.rect(screen, COLORS[game.field[i][j]],
+                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
+                                                 BLOCK_SIZE - 1))
+                if [i, j] in game.active_squares:
+                    pygame.draw.rect(screen, COLORS[game.active.shape],
                                      pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
                                                  BLOCK_SIZE - 1))
                 pygame.display.update()
