@@ -13,7 +13,7 @@ BACKGROUND_COLOR = "#3f4a4e"
 BLOCK_COLOR = "#901b1b"
 TEXT_COLOR = "#FFFFFF"
 SCREEN_COLOR = "#1c2e4a"
-MAX_TETRO = 10000
+MAX_TETRO = 70000//7
 MAX_SZ = 4
 MAX_NO_I = 12
 DIVIDER = 1
@@ -529,20 +529,26 @@ def play():
     pygame.display.update()
     game.update_score()
     landed_counter = 1
+    start_time = time.time()
+    loop_time = time.time()
     while True:
+
         counter += 1
         counter %= 100000
         landed_counter %= 100000
-        if counter % (fps // (game.level + 1) // 2) == 0 and not game.check_landed():
+        #if counter % (fps // (game.level + 1) // 2) == 0 and not game.check_landed():
+        #    game.progress_time()
+        #    first_landed = True
+        #if game.check_landed():
+        #    landed_counter += 1
+        #    first_landed = False
+        #if landed_counter % (fps // (game.level + 1) // 4) == 0:
+        #    game.progress_time()
+        #    first_landed = True
+        #    landed_counter = 1
+        if time.time() - loop_time > time_to_drop(game.level):
             game.progress_time()
-            first_landed = True
-        if game.check_landed():
-            landed_counter += 1
-            first_landed = False
-        if landed_counter % (fps // (game.level + 1) // 4) == 0:
-            game.progress_time()
-            first_landed = True
-            landed_counter = 1
+            loop_time = time.time()
         for event in pygame.event.get():
             pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
             if event.type == pygame.QUIT:
@@ -579,7 +585,8 @@ def play():
 
 
 
-# play()
+def time_to_drop(lvl):
+    return (0.8 - lvl * 0.007)**lvl
 
 
 if __name__ == "__main__":
