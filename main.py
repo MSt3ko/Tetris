@@ -16,56 +16,23 @@ TEXT_COLOR = "#FFFFFF"
 SCREEN_COLOR = "#2a2a29"
 COLORS = {"J": "#3a33e6", "Z": "#901b1b", "T": "#871f84", "S": "#008313", "L": "#C06002", "I": "#02b5c0",
           "O": "#Bcc002"}
-MAX_TETRO = 70000//7
+GHOST_COLORS = {"J": "#2b2968", "Z": "#5e0809", "T": "#360f35", "S": "#0f2208", "L": "#49330f", "I": "#0F4948",
+                "O": "#5a5e08"}
+MAX_TETRO = 70000 // 7
 MAX_SZ = 4
 MAX_NO_I = 12
 DIVIDER = 1
 MAX_T = 10000
 WIDTH = 10
 HEIGHT = 20
-DAS = 1/5
-AFTER_DAS = 1/40
+DAS = 1 / 5
+AFTER_DAS = 1 / 40
+LOCK_DELAY = 0.5
 
 
-def old_rg():
-    s = []
-    sz_counter = 0
-    i_counter = 0
-    s.append(START_SHAPES[random.randrange(0, len(START_SHAPES))])
-    for i in range(MAX_TETRO):
-        if sz_counter < MAX_SZ and i_counter < MAX_NO_I:
-            new_shape = SHAPES[random.randrange(0, len(SHAPES))]
-        elif i_counter >= MAX_NO_I:
-            new_shape = 'I'
-        elif sz_counter >= MAX_SZ:
-            new_shape = NON_SNAKE_SHAPES[random.randrange(0, len(NON_SNAKE_SHAPES))]
-        if new_shape in ['S', 'Z']:
-            sz_counter += 1
-        else:
-            sz_counter = 0
-        if new_shape != 'I':
-            i_counter += 1
-        else:
-            i_counter = 0
-        s.append(new_shape)
-    return s
-
-
-def random_generator(shapes=SHAPES, start_shapes=START_SHAPES, max_tetro=MAX_TETRO):
-    s = [start_shapes[random.randrange(0, len(start_shapes))]]
-    while len(s) < max_tetro:
-        bag = copy.deepcopy(shapes)
-        while len(bag) > 0:
-            new = bag[random.randrange(0, len(bag))]
-            s.append(new)
-            bag.remove(new)
-    return s
-
-
-def draw_rect(i, j, surface, color, size=BLOCK_SIZE, divider=DIVIDER):
-    pygame.draw.rect(surface, color,
-                     pygame.Rect(size * (j + 1), size * (i + 1), size - divider,
-                                 size - divider))
+def draw_piece(tet, color):
+    for [i, j] in tet:
+        draw_rect(i, j, screen, color)
 
 
 class Board:
@@ -117,6 +84,8 @@ class Board:
             case _:
                 raise Exception("Invalid shape.")
 
+        draw_piece(self.ghost_brick(), GHOST_COLORS[self.active.shape])
+
     def progress_time(self):
         if self.game_over():
             raise Exception("GAME OVER")
@@ -130,9 +99,11 @@ class Board:
             self.active = Tetromino(self.S.pop(), self)
             self.update_score()
             self.set_active_squares(self.active.shape)
+            draw_piece(self.ghost_brick(), GHOST_COLORS[self.active.shape])
         else:
             self.active.loc[0] += 1
             new_active = [[i + 1, j] for [i, j] in self.active_squares]
+            draw_piece(self.ghost_brick(), GHOST_COLORS[self.active.shape])
             self.update_active_view(new_active)
         self.t += 1
         self.t %= MAX_T
@@ -176,6 +147,9 @@ class Board:
                 while self.move("D") is not None:
                     pass
                 return None
+        #for [i, j] in self.ghost_brick():
+        #    draw_rect(i, j, screen, GHOST_COLORS[self.active.shape])
+        self.update_ghost(new_active)
         self.update_active_view(new_active)
         return True
 
@@ -195,6 +169,24 @@ class Board:
                                  pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
                                              BLOCK_SIZE - 1))
             self.active_squares = new_active
+
+
+    def update_ghost(self, new_active):
+        for [i, j] in (self.ghost_brick() + self.ghost_brick(new_active)):
+            if [i, j] not in self.ghost_brick(new_active):
+                if i < 0:
+                    pygame.draw.rect(screen, SCREEN_COLOR,
+                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
+                                                 BLOCK_SIZE - 1))
+                else:
+                    pygame.draw.rect(screen, BACKGROUND_COLOR,
+                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
+                                                 BLOCK_SIZE - 1))
+            if [i, j] in self.ghost_brick(new_active) and [i, j] not in self.ghost_brick():
+                pygame.draw.rect(screen, GHOST_COLORS[self.active.shape],
+                                 pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
+                                             BLOCK_SIZE - 1))
+
 
     def rotate(self, direction):
         if self.active.shape == 'O':
@@ -223,7 +215,7 @@ class Board:
                 self.move("D")
                 self.rotate(direction)
                 pygame.draw.rect(screen, SCREEN_COLOR,
-                                 pygame.Rect(0, 0, BLOCK_SIZE*WIDTH,
+                                 pygame.Rect(0, 0, BLOCK_SIZE * WIDTH,
                                              BLOCK_SIZE))
             if x >= self.height:
                 return None
@@ -231,6 +223,7 @@ class Board:
                 return None
             if self.field[x][y] is not None and [x, y] not in self.active_squares:
                 return None
+        self.update_ghost(new_active)
         self.update_active_view(new_active)
         return None
 
@@ -257,7 +250,7 @@ class Board:
             for col in range(self.width):
                 draw_rect(row, col, screen, BACKGROUND_COLOR)
                 if self.field[row - 1][col] is not None and self.field[row][col] is None:
-                    draw_rect(row, col, screen, COLORS[self.field[row-1][col]])
+                    draw_rect(row, col, screen, COLORS[self.field[row - 1][col]])
                     draw_rect(row - 1, col, screen, BACKGROUND_COLOR)
             self.field[row] = self.field[row - 1]
         self.field[0] = [None for i in range(self.width)]
@@ -339,7 +332,7 @@ class Board:
                                                            block_size * (self.height + 2),
                                                            self.width * block_size,
                                                            3 * block_size))
-        score_font = pygame.font.SysFont("Montserrat", block_size//2, bold=True)
+        score_font = pygame.font.SysFont("Montserrat", block_size // 2, bold=True)
         score_text = score_font.render("PTS: ", True, TEXT_COLOR)
         screen.blit(score_text, (block_size * (2 * self.width // 3 + 2), block_size * (self.height + 2)))
         pygame.display.update()
@@ -347,8 +340,6 @@ class Board:
         score_value = score_font.render(str(self.score), True, TEXT_COLOR)
         screen.blit(score_value, (block_size * (2 * self.width // 3 + 3), block_size * (self.height + 2)))
         pygame.display.update()
-
-
 
         lvl_value = score_font.render(str(self.level), True, TEXT_COLOR)
         screen.blit(lvl_value, (block_size * (self.width // 3 + 3), block_size * (self.height + 2)))
@@ -366,94 +357,105 @@ class Board:
                                                            block_size * (self.height + 1.5),
                                                            2 * block_size,
                                                            2 * block_size))
-        self.show_brick(block_size * 2, int(block_size * (self.height + 1.5)), block_size//2)
-
-
+        self.show_brick(block_size * 2, int(block_size * (self.height + 1.5)), block_size // 2)
 
         pass
-
 
     def show_brick(self, left_offset, top_offset, size):
         match self.S[-1]:
             case "I":
                 for offset in range(4):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset + size,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset + size,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
 
             case "O":
                 for offset in range(2):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
                 for offset in range(2):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset + size,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset + size,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
             case "T":
                 pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + size,
-                                                                  top_offset,
-                                                                  size - DIVIDER,
-                                                                  size - DIVIDER))
+                                                                         top_offset,
+                                                                         size - DIVIDER,
+                                                                         size - DIVIDER))
                 for offset in range(3):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset + size,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset + size,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
             case "S":
                 for offset in range(2):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + (offset + 1) * size,
-                                                                      top_offset,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
                 for offset in range(2):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset + size,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset + size,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
             case "Z":
                 for offset in range(2):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
                 for offset in range(2):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + (offset + 1) * size,
-                                                                      top_offset + size,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset + size,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
             case "L":
                 pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + 2 * size,
-                                                                  top_offset,
-                                                                  size - DIVIDER,
-                                                                  size - DIVIDER))
+                                                                         top_offset,
+                                                                         size - DIVIDER,
+                                                                         size - DIVIDER))
                 for offset in range(3):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset + size,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset + size,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
             case "J":
                 pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset,
-                                                                  top_offset,
-                                                                  size - DIVIDER,
-                                                                  size - DIVIDER))
+                                                                         top_offset,
+                                                                         size - DIVIDER,
+                                                                         size - DIVIDER))
                 for offset in range(3):
                     pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                      top_offset + size,
-                                                                      size - DIVIDER,
-                                                                      size - DIVIDER))
+                                                                             top_offset + size,
+                                                                             size - DIVIDER,
+                                                                             size - DIVIDER))
+        return None
+
+    # Find the squares that the active brick will take up if it drops from current position.
+    def ghost_brick(self, squares=[]):
+        if squares:
+            drop_squares = copy.deepcopy(squares)
+        else:
+            drop_squares = copy.deepcopy(self.active_squares)
+        temp_squares = []
+        while True:
+            for [i, j] in drop_squares:
+                if i + 1 >= self.height or self.field[i + 1][j] is not None:
+                    return drop_squares
+                else:
+                    temp_squares.append([i + 1, j])
+            drop_squares = copy.deepcopy(temp_squares)
+            temp_squares = []
+
+
 
 
 # Tetrominos don't exist until they are on the board. The stack of "next brick" is just symbols.
 class Tetromino:
-
-    def __init__(self):
-        self.shape = SHAPES[random.randrange(0, 7)]
-        self.loc = [0, self.width // 2]
-        self.landed = False
 
     def __init__(self, shape, board):
         self.shape = shape
@@ -540,19 +542,30 @@ def play():
                                                                    BLOCK_SIZE - DIVIDER,
                                                                    BLOCK_SIZE - DIVIDER))
 
+    draw_piece(game.ghost_brick(), GHOST_COLORS[game.active.shape])
+
     pygame.display.update()
     game.update_score()
     landed_counter = 1
     start_time = time.time()
     loop_time = time.time()
+    first_landed = True
     while True:
 
         counter += 1
         counter %= 100000
         landed_counter %= 100000
-        if time.time() - loop_time > time_to_drop(game.level):
+        if time.time() - loop_time > time_to_drop(game.level) and game.check_landed() is False:
             game.progress_time()
             loop_time = time.time()
+        if game.check_landed() and first_landed:
+            first_landed = False
+            landed_time = time.time()
+        if game.check_landed() and not first_landed and time.time() - landed_time > LOCK_DELAY:
+            first_landed = True
+            game.progress_time()
+            loop_time = time.time()
+
         for event in pygame.event.get():
             pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
             if event.type == pygame.QUIT:
@@ -561,7 +574,6 @@ def play():
                 if event.key == pygame.K_UP:
                     game.rotate("cw")
                 if event.key == pygame.K_LEFT:
-                    # print("LEFT REGISTERED")
                     game.move("L")
                 if event.key == pygame.K_RIGHT:
                     game.move("R")
@@ -575,7 +587,6 @@ def play():
                     game.__init__(20, 10)
                 if event.key == pygame.K_q:
                     raise Exception("QUIT GAME")
-
 
         print(game)
 
@@ -592,9 +603,49 @@ def play():
                 pygame.display.update()
 
 
+def old_rg():
+    s = []
+    sz_counter = 0
+    i_counter = 0
+    s.append(START_SHAPES[random.randrange(0, len(START_SHAPES))])
+    for i in range(MAX_TETRO):
+        if sz_counter < MAX_SZ and i_counter < MAX_NO_I:
+            new_shape = SHAPES[random.randrange(0, len(SHAPES))]
+        elif i_counter >= MAX_NO_I:
+            new_shape = 'I'
+        elif sz_counter >= MAX_SZ:
+            new_shape = NON_SNAKE_SHAPES[random.randrange(0, len(NON_SNAKE_SHAPES))]
+        if new_shape in ['S', 'Z']:
+            sz_counter += 1
+        else:
+            sz_counter = 0
+        if new_shape != 'I':
+            i_counter += 1
+        else:
+            i_counter = 0
+        s.append(new_shape)
+    return s
+
+
+def random_generator(shapes=SHAPES, start_shapes=START_SHAPES, max_tetro=MAX_TETRO):
+    s = [start_shapes[random.randrange(0, len(start_shapes))]]
+    while len(s) < max_tetro:
+        bag = copy.deepcopy(shapes)
+        while len(bag) > 0:
+            new = bag[random.randrange(0, len(bag))]
+            s.append(new)
+            bag.remove(new)
+    return s
+
+
+def draw_rect(i, j, surface, color, size=BLOCK_SIZE, divider=DIVIDER):
+    pygame.draw.rect(surface, color,
+                     pygame.Rect(size * (j + 1), size * (i + 1), size - divider,
+                                 size - divider))
+
 
 def time_to_drop(lvl):
-    return (0.8 - lvl * 0.007)**lvl
+    return (0.8 - lvl * 0.007) ** lvl
 
 
 if __name__ == "__main__":
