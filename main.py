@@ -147,8 +147,6 @@ class Board:
                 while self.move("D") is not None:
                     pass
                 return None
-        #for [i, j] in self.ghost_brick():
-        #    draw_rect(i, j, screen, GHOST_COLORS[self.active.shape])
         self.update_ghost(new_active)
         self.update_active_view(new_active)
         return True
@@ -210,7 +208,7 @@ class Board:
         # or edges of the map.
         # Possible speedup if this is checked earlier, when they are added to the list. This approach is clearer so it
         # stays for now.
-        for [x, y] in new_active:
+        """for [x, y] in new_active:
             if x < 0:
                 self.move("D")
                 self.rotate(direction)
@@ -222,7 +220,14 @@ class Board:
             if y < 0 or y >= self.width:
                 return None
             if self.field[x][y] is not None and [x, y] not in self.active_squares:
-                return None
+                return None"""
+        print("Old active: ", self.active_squares)
+        kickback = self.kickback(new_active)
+        if kickback:
+            new_active = kickback
+            draw_piece(kickback, COLORS[self.active.shape])
+        else:
+            return None
         self.update_ghost(new_active)
         self.update_active_view(new_active)
         return None
@@ -451,6 +456,53 @@ class Board:
             drop_squares = copy.deepcopy(temp_squares)
             temp_squares = []
 
+    def kickback(self, ideal_rot):
+
+        # If correct, don't change
+        if self.check_valid(ideal_rot):
+            return ideal_rot
+        # Else, try moving right, then left, then up and down
+        else:
+            right = [[i, j + 1] for [i, j] in ideal_rot]
+            if self.check_valid(right):
+                self.active.loc[1] += 1
+                return right
+            left = [[i, j - 1] for [i, j] in ideal_rot]
+            if self.check_valid(left):
+                self.active.loc[1] -= 1
+                return left
+            up = [[i - 1, j] for [i, j] in ideal_rot]
+            if self.check_valid(up):
+                self.active.loc[0] -= 1
+                return up
+            down = [[i + 1, j] for [i, j] in ideal_rot]
+            if self.check_valid(down):
+                self.active.loc[0] += 1
+                return down
+            if self.active.shape == "I":
+                right2 = [[i, j + 2] for [i, j] in ideal_rot]
+                if self.check_valid(right2):
+                    self.active.loc[1] += 2
+                    return right2
+                left2 = [[i, j - 2] for [i, j] in ideal_rot]
+                if self.check_valid(left2):
+                    self.active.loc[1] -= 2
+                    return left2
+                up2 = [[i - 2, j] for [i, j] in ideal_rot]
+                if self.check_valid(up2):
+                    self.active.loc[0] -= 2
+                    return up2
+                down2 = [[i + 2, j] for [i, j] in ideal_rot]
+                if self.check_valid(down2):
+                    self.active.loc[0] += 2
+                    return down2
+            return None
+
+    def check_valid(self, piece):
+        for [i, j] in piece:
+            if (i < 0) or (i >= self.height) or (j < 0) or (j >= self.width) or (self.field[i][j] is not None):
+                return False
+        return True
 
 
 
