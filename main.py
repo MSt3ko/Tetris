@@ -28,6 +28,9 @@ HEIGHT = 20
 DAS = 1 / 5
 AFTER_DAS = 1 / 40
 LOCK_DELAY = 0.5
+CONTROLS = {"left": {pygame.K_LEFT}, "right": {pygame.K_RIGHT}, "down": {pygame.K_DOWN},
+            "rotate_cw": {pygame.K_x, pygame.K_UP}, "rotate_ccw": {pygame.K_z},
+            "drop": {pygame.K_SPACE}}
 
 
 def draw_piece(tet, color):
@@ -623,15 +626,17 @@ def play():
             if event.type == pygame.QUIT:
                 break
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
+                if event.key in CONTROLS["rotate_cw"]:
                     game.rotate("cw")
-                if event.key == pygame.K_LEFT:
+                if event.key in CONTROLS["rotate_ccw"]:
+                    game.rotate("ccw")
+                if event.key in CONTROLS["left"]:
                     game.move("L")
-                if event.key == pygame.K_RIGHT:
+                if event.key in CONTROLS["right"]:
                     game.move("R")
-                if event.key == pygame.K_DOWN:
+                if event.key in CONTROLS["down"]:
                     game.move("D")
-                if event.key == pygame.K_SPACE:
+                if event.key in CONTROLS["drop"]:
                     game.move("S")
                     break
                 pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
