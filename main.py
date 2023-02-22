@@ -19,6 +19,7 @@ CONTROLS = {"left": {pygame.K_LEFT}, "right": {pygame.K_RIGHT}, "down": {pygame.
             "rotate_cw": {pygame.K_x, pygame.K_UP}, "rotate_ccw": {pygame.K_z},
             "drop": {pygame.K_SPACE}}
 SPACE_DELAY = 0.5
+ASCII = False  # Toggles whether an ASCII version runs in the terminal as well
 
 
 class Board:
@@ -66,7 +67,6 @@ class Board:
         self.score += (self.level + 1) * POINTS[rows_deleted]
         self.rows_current += rows_deleted
         if self.rows_current >= self.next_lvl_rows(self.level):
-            print(self.level)
             self.level += 1
         return None
 
@@ -513,7 +513,8 @@ def play():
                 if event.key == pygame.K_q:
                     raise Exception("QUIT GAME")
 
-        print(game)
+        if ASCII:
+            print(game)
 
         drawTetris.event_loop_update(game, SCREEN)
 
