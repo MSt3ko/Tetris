@@ -1,27 +1,14 @@
 import random
 import time
-import os
-import unittest
 import pygame
+import drawTetris
 import copy
 
-SHAPES = ['I', 'L', 'J', 'T', 'O', 'S', 'Z']
-NON_SNAKE_SHAPES = ['I', 'L', 'J', 'T', 'O']
-START_SHAPES = ['I', 'L', 'J', 'T']
+SHAPES = ('I', 'L', 'J', 'T', 'O', 'S', 'Z')
+NON_SNAKE_SHAPES = ('I', 'L', 'J', 'T', 'O')
+START_SHAPES = ('I', 'L', 'J', 'T')
 POINTS = {0: 0, 1: 100, 2: 300, 3: 500, 4: 800}
-BLOCK_SIZE = 40
-BACKGROUND_COLOR = "#000000"
-BLOCK_COLOR = "#901b1b"
-TEXT_COLOR = "#FFFFFF"
-SCREEN_COLOR = "#2a2a29"
-COLORS = {"J": "#3a33e6", "Z": "#901b1b", "T": "#871f84", "S": "#008313", "L": "#C06002", "I": "#02b5c0",
-          "O": "#Bcc002"}
-GHOST_COLORS = {"J": "#2b2968", "Z": "#5e0809", "T": "#360f35", "S": "#0f2208", "L": "#49330f", "I": "#0F4948",
-                "O": "#5a5e08"}
 MAX_TETRO = 70000 // 7
-MAX_SZ = 4
-MAX_NO_I = 12
-DIVIDER = 1
 MAX_T = 10000
 WIDTH = 10
 HEIGHT = 20
@@ -31,588 +18,465 @@ LOCK_DELAY = 0.5
 CONTROLS = {"left": {pygame.K_LEFT}, "right": {pygame.K_RIGHT}, "down": {pygame.K_DOWN},
             "rotate_cw": {pygame.K_x, pygame.K_UP}, "rotate_ccw": {pygame.K_z},
             "drop": {pygame.K_SPACE}}
-
-
-def draw_piece(tet, color):
-    for [i, j] in tet:
-        draw_rect(i, j, screen, color)
+SPACE_DELAY = 0.5
 
 
 class Board:
-
     def __init__(self, n, m):
         self.width = m
         self.height = n
         self.field = [[None for i in range(m)] for j in range(n)]
         self.score = 0
         self.t = 0
-        self.S = random_generator()
+        self.S = self.random_generator()
         self.active = Tetromino(self.S.pop(), self)
+        self.ghost = self.ghost_brick()
         self.rows_total = 0
         self.rows_current = 0
         self.level = 0
-        match self.active.shape:
-            case "I":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1] + i] for i in range(-1, 3)]
-            case "O":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0] + 1, self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] + 1, self.active.loc[1] + 1]]
-            case "T":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0] - 1, self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0], self.active.loc[1] - 1]]
-            case "S":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] + 1, self.active.loc[1]],
-                                       [self.active.loc[0] + 1, self.active.loc[1] - 1]]
-            case "Z":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] - 1],
-                                       [self.active.loc[0] + 1, self.active.loc[1]],
-                                       [self.active.loc[0] + 1, self.active.loc[1] + 1]]
-            case "L":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] - 1],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] - 1, self.active.loc[1] + 1]]
-            case "J":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] - 1],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] - 1, self.active.loc[1] - 1]]
-            case _:
-                raise Exception("Invalid shape.")
-
-        draw_piece(self.ghost_brick(), GHOST_COLORS[self.active.shape])
 
     def progress_time(self):
-        if self.game_over():
-            raise Exception("GAME OVER")
         if self.check_landed():
+            # if piece stack is empty, regenerate
             if not self.S:
-                self.S = random_generator()
+                self.S = self.random_generator()
 
-            for [x, y] in self.active_squares:
+            # shape name is used to track the location in the grid - helps with color and ASCII version
+            for (x, y) in self.active.fields:
                 self.field[x][y] = self.active.shape
             self.delete_full_rows()
             self.active = Tetromino(self.S.pop(), self)
-            self.update_score()
-            self.set_active_squares(self.active.shape)
-            draw_piece(self.ghost_brick(), GHOST_COLORS[self.active.shape])
+            drawTetris.update_score(self, SCREEN)
+            drawTetris.piece(self, SCREEN, self.active, ghost=False)
+            self.ghost = self.ghost_brick()
+            drawTetris.piece(self, SCREEN, self.ghost, ghost=True)
         else:
-            self.active.loc[0] += 1
-            new_active = [[i + 1, j] for [i, j] in self.active_squares]
-            draw_piece(self.ghost_brick(), GHOST_COLORS[self.active.shape])
-            self.update_active_view(new_active)
+            self.move("D")
         self.t += 1
         self.t %= MAX_T
-
         return None
 
-    def move(self, x):
-        match x:
+    def delete_full_rows(self):
+        rows_deleted = 0
+        for row in range(self.height):
+            # count not-None values in row, if equal to width, delete
+            if sum(x is not None for x in self.field[row]) == self.width:
+                self.gravity(row)
+                rows_deleted += 1
+        self.score += (self.level + 1) * POINTS[rows_deleted]
+        self.rows_current += rows_deleted
+        if self.rows_current >= self.next_lvl_rows(self.level):
+            print(self.level)
+            self.level += 1
+        return None
+
+    @staticmethod
+    def next_lvl_rows(lvl):
+        """One of the official options for number of rows needed for next level."""
+        return (lvl + 1) * 10
+
+    def gravity(self, deleted_row):
+        """Make the bricks above the deleted rows fall into place."""
+        for row in range(deleted_row, 0, -1):
+            drawTetris.update_row(self, row, SCREEN)
+            self.field[row] = self.field[row - 1]
+        self.field[0] = [None for i in range(self.width)]
+
+    def check_landed(self):
+        for (x, y) in self.active.fields:
+            if x == self.height - 1 or self.field[x + 1][y] is not None:
+                return True
+        return False
+
+    def clear_rows(self):
+        pass
+
+    @staticmethod
+    def random_generator(shapes=SHAPES, start_shapes=START_SHAPES, max_tetro=MAX_TETRO):
+        """Bag based generator of shapes, as in most official versions."""
+        s = [start_shapes[random.randrange(0, len(start_shapes))]]
+        while len(s) < max_tetro:
+            bag = list(shapes)
+            while len(bag) > 0:
+                new = bag[random.randrange(0, len(bag))]
+                s.append(new)
+                bag.remove(new)
+        return s
+
+    def ghost_brick(self, fields=None):
+        """Creates a copy of the active brick under it, on top of the stack."""
+        if not fields:
+            drop_squares = copy.deepcopy(self.active.fields)
+        if fields:
+            drop_squares = copy.deepcopy(fields)
+        temp_squares = []
+        loc = copy.deepcopy(self.active.loc)
+        while True:
+            # noinspection PyUnboundLocalVariable
+            for (i, j) in drop_squares:
+                if i + 1 >= self.height or self.field[i + 1][j] is not None:
+                    return Tetromino(self.active.shape, self, fields=drop_squares, loc=loc)
+                else:
+                    temp_squares.append((i + 1, j))
+            loc[0] += 1
+            drop_squares = copy.deepcopy(temp_squares)
+            temp_squares = []
+
+    def move(self, direction):
+        """Move tetromino in given direction."""
+        new_active = []
+        match direction:
             case "L":
                 try:
-                    new_active = []
-                    for [row, col] in self.active_squares:
+                    for (row, col) in self.active.fields:
                         if col == 0 or self.field[row][col - 1] is not None:
                             return None
-                        new_active.append([row, col - 1])
+                        new_active.append((row, col - 1))
                     self.active.loc[1] -= 1
                 except IndexError:
                     pass
             case "R":
                 try:
-                    new_active = []
-                    for [row, col] in self.active_squares:
+                    for (row, col) in self.active.fields:
                         if col == self.width - 1 or self.field[row][col + 1] is not None:
                             return None
-                        new_active.append([row, col + 1])
+                        new_active.append((row, col + 1))
                     self.active.loc[1] += 1
                 except IndexError:
                     pass
             case "D":
                 try:
-                    new_active = []
-                    for [row, col] in self.active_squares:
+                    for (row, col) in self.active.fields:
                         if row == self.height - 1 or self.field[row + 1][col] is not None:
                             return None
-                        new_active.append([row + 1, col])
+                        new_active.append((row + 1, col))
                     self.active.loc[0] += 1
-                    self.update_active_view(new_active)
                 except IndexError:
                     pass
             case "S":
-                while self.move("D") is not None:
+                while self.move("D"):
                     pass
                 return None
-        self.update_ghost(new_active)
-        self.update_active_view(new_active)
+            case _:
+                raise Exception("Invalid direction.")
+
+        new_active_piece = Tetromino(self.active.shape, self,
+                                     fields=new_active, loc=self.active.loc)
+        drawTetris.update_piece(self, SCREEN, new_active_piece)
+        self.active = new_active_piece
+        new_ghost = self.ghost_brick()
+        drawTetris.update_piece(self, SCREEN, new_ghost, ghost=True)
+        self.ghost = new_ghost
         return True
 
-    def update_active_view(self, new_active):
-        for [i, j] in (self.active_squares + new_active):
-            if [i, j] not in new_active:
-                if i < 0:
-                    pygame.draw.rect(screen, SCREEN_COLOR,
-                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                                 BLOCK_SIZE - 1))
-                else:
-                    pygame.draw.rect(screen, BACKGROUND_COLOR,
-                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                                 BLOCK_SIZE - 1))
-            if [i, j] in new_active and [i, j] not in self.active_squares:
-                pygame.draw.rect(screen, COLORS[self.active.shape],
-                                 pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                             BLOCK_SIZE - 1))
-            self.active_squares = new_active
-
-
-    def update_ghost(self, new_active):
-        for [i, j] in (self.ghost_brick() + self.ghost_brick(new_active)):
-            if [i, j] not in self.ghost_brick(new_active):
-                if i < 0:
-                    pygame.draw.rect(screen, SCREEN_COLOR,
-                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                                 BLOCK_SIZE - 1))
-                else:
-                    pygame.draw.rect(screen, BACKGROUND_COLOR,
-                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                                 BLOCK_SIZE - 1))
-            if [i, j] in self.ghost_brick(new_active) and [i, j] not in self.ghost_brick():
-                pygame.draw.rect(screen, GHOST_COLORS[self.active.shape],
-                                 pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                             BLOCK_SIZE - 1))
-
-
     def rotate(self, direction):
+        """Rotate the active Tetromino clockwise or counter-clockwise."""
         if self.active.shape == 'O':
             return None
         new_active = []
         if direction == "cw":
-            for [x, y] in self.active_squares:
+            for (x, y) in self.active.fields:
                 x2 = x - self.active.loc[0]
                 y2 = y - self.active.loc[1]
-                new_active.append([y2 + self.active.loc[0], -x2 + self.active.loc[1]])
+                new_active.append((y2 + self.active.loc[0], -x2 + self.active.loc[1]))
 
         elif direction == "ccw":
-            for [x, y] in self.active_squares:
+            for (x, y) in self.active.fields:
                 x2 = x - self.active.loc[0]
                 y2 = y - self.active.loc[1]
-                new_active.append([-y2 + self.active.loc[0], x2 + self.active.loc[1]])
+                new_active.append((-y2 + self.active.loc[0], x2 + self.active.loc[1]))
         else:
             raise Exception("Invalid direction. Valid options cw and ccw.")
-        # print("old: ", self.active_squares, " \n new: ", new_active)
-        # Need to check validity of coordinates - don't allow rotation if it would cause overlap with existing bricks
-        # or edges of the map.
-        # Possible speedup if this is checked earlier, when they are added to the list. This approach is clearer so it
-        # stays for now.
-        """for [x, y] in new_active:
-            if x < 0:
-                self.move("D")
-                self.rotate(direction)
-                pygame.draw.rect(screen, SCREEN_COLOR,
-                                 pygame.Rect(0, 0, BLOCK_SIZE * WIDTH,
-                                             BLOCK_SIZE))
-            if x >= self.height:
-                return None
-            if y < 0 or y >= self.width:
-                return None
-            if self.field[x][y] is not None and [x, y] not in self.active_squares:
-                return None"""
-        print("Old active: ", self.active_squares)
+
         kickback = self.kickback(new_active)
         if kickback:
             new_active = kickback
-            draw_piece(kickback, COLORS[self.active.shape])
         else:
             return None
-        self.update_ghost(new_active)
-        self.update_active_view(new_active)
+
+        new_active_piece = Tetromino(self.active.shape, self,
+                                     fields=new_active, loc=self.active.loc)
+        drawTetris.update_piece(self, SCREEN, new_active_piece)
+        self.active = new_active_piece
+        new_ghost = self.ghost_brick()
+        drawTetris.update_piece(self, SCREEN, new_ghost, ghost=True)
+        self.ghost = new_ghost
         return None
 
-    def check_landed(self):
-        for [x, y] in self.active_squares:
-            if x == self.height - 1 or self.field[x + 1][y] is not None:
-                return True
-        return False
+    def kickback(self, ideal_rot):
+        """Even if a rotation is invalid,
+        sometimes we want to move the brick automatically for responsiveness."""
 
-    def delete_full_rows(self):
-        rows_deleted = 0
-        for row in range(self.height):
-            if sum(x is not None for x in self.field[row]) == self.width:
-                self.gravity(row)
-                rows_deleted += 1
-        self.score += max(self.level, 1) * POINTS[rows_deleted]
-        self.rows_current += rows_deleted
-        if self.rows_current >= min(self.level * 10 + 10, max(100, self.level * 10 - 50)):
-            self.level += 1
-        return None
+        # If correct, don't change
+        if self.check_valid(ideal_rot):
+            return ideal_rot
 
-    def gravity(self, deleted_row):
-        for row in range(deleted_row, 0, -1):
-            for col in range(self.width):
-                draw_rect(row, col, screen, BACKGROUND_COLOR)
-                if self.field[row - 1][col] is not None and self.field[row][col] is None:
-                    draw_rect(row, col, screen, COLORS[self.field[row - 1][col]])
-                    draw_rect(row - 1, col, screen, BACKGROUND_COLOR)
-            self.field[row] = self.field[row - 1]
-        self.field[0] = [None for i in range(self.width)]
+        # Else, try moving right, then left, then up and down
+        else:
 
-    def game_over(self):
-        for i in range(self.width // 2 - 2, self.width // 2 + 2):
-            if self.field[0][i] is not None:
-                return True
-        return False
+            right = [(i, j + 1) for (i, j) in ideal_rot]
+            if self.check_valid(right):
+                self.active.loc[1] += 1
+                return right
 
-    def __repr__(self):
-        return self.field
+            left = [(i, j - 1) for (i, j) in ideal_rot]
+            if self.check_valid(left):
+                self.active.loc[1] -= 1
+                return left
+
+            down = [(i + 1, j) for (i, j) in ideal_rot]
+            if self.check_valid(down):
+                self.active.loc[0] += 1
+                return down
+
+            up = [(i - 1, j) for (i, j) in ideal_rot]
+            if self.check_valid(up):
+                self.active.loc[0] -= 1
+                return up
+
+            # The I shape sometimes needs to be moved 2 places for natural kickback.
+            if self.active.shape == "I":
+
+                right2 = [(i, j + 2) for (i, j) in ideal_rot]
+                if self.check_valid(right2):
+                    self.active.loc[1] += 2
+                    return right2
+
+                left2 = [(i, j - 2) for (i, j) in ideal_rot]
+                if self.check_valid(left2):
+                    self.active.loc[1] -= 2
+                    return left2
+
+                down2 = [(i + 2, j) for (i, j) in ideal_rot]
+                if self.check_valid(down2):
+                    self.active.loc[0] += 2
+                    return down2
+
+                up2 = [(i - 2, j) for (i, j) in ideal_rot]
+                if self.check_valid(up2):
+                    self.active.loc[0] -= 2
+                    return up2
+
+            return None
+
+    def check_valid(self, fields):
+        """Check if a potential tetromino position overlaps
+        with any occupied spaces or falls outside of the grid"""
+        for (i, j) in fields:
+            if (i < 0) or (i >= self.height) or (j < 0) or (j >= self.width) or (self.field[i][j] is not None):
+                return False
+        return True
 
     def __str__(self):
+        """This representation also enables an ASCII version of the game."""
         board = [" " + "-" * self.width + " "]
         for row in range(self.height):
             curr_row = ["|"]
             for col in range(self.width):
                 if self.field[row][col] is not None:
                     curr_row.append(self.field[row][col])
-                elif [row, col] in self.active_squares:
+                elif (row, col) in self.active.fields:
                     curr_row.append(self.active.shape)
                 else:
                     curr_row.append(" ")
             curr_row.append("|")
             board.append(''.join(curr_row))
         board.append(" " + "-" * self.width + " ")
-        return '\n'.join(board) + '\n' + "LVL" + str(self.level) + ", " + str(self.score) + "PTS"
+        return '\n'.join(board) + '\n' + "LVL" + str(self.level) \
+               + ", " + str(self.score) + "PTS"
 
-    def set_active_squares(self, shape):
-        match shape:
-            case "I":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1] + i] for i in range(-1, 3)]
-            case "O":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0] + 1, self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] + 1, self.active.loc[1] + 1]]
-            case "T":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0] - 1, self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0], self.active.loc[1] - 1]]
-            case "S":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] + 1, self.active.loc[1]],
-                                       [self.active.loc[0] + 1, self.active.loc[1] - 1]]
-            case "Z":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] - 1],
-                                       [self.active.loc[0] + 1, self.active.loc[1]],
-                                       [self.active.loc[0] + 1, self.active.loc[1] + 1]]
-            case "L":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] - 1],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] - 1, self.active.loc[1] + 1]]
-            case "J":
-                self.active_squares = [[self.active.loc[0], self.active.loc[1]],
-                                       [self.active.loc[0], self.active.loc[1] - 1],
-                                       [self.active.loc[0], self.active.loc[1] + 1],
-                                       [self.active.loc[0] - 1, self.active.loc[1] - 1]]
+    @staticmethod
+    def time_to_drop(lvl):
+        """How much time passes between tetromino falling 1 space, per level."""
+        return (0.8 - lvl * 0.007) ** lvl
 
-    def update_screen(self, block_size=BLOCK_SIZE):
-        pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(block_size, block_size, self.width * block_size,
-                                                               self.height * block_size))
-        for i in range(self.height):
-            for j in range(self.width):
-                if self.field[i][j] is not None or [i, j] in self.active_squares:
-                    pygame.draw.rect(screen, COLORS[self.active.shape],
-                                     pygame.Rect(block_size * (j + 1), block_size * (i + 1), block_size - 1,
-                                                 block_size - 1))
-                pygame.display.update()
+    def all_options(self):
+        """Return all possible options where a piece can be dropped.
+        First implementation should be simple, not considering overhangs, T-spins etc,
+        just dropping any rotation of piece from any position on top."""
+        while self.move("L"):
+            pass
+        games = []
+        current_game = copy.deepcopy(self)
+        start_brick = current_game.active
+        for i in range(4):
+            current_game.move("S")
+            games.append(current_game)
+            current_game = copy.deepcopy(self)
+            while current_game.move("R"):
+                self.move("R")
+                current_game.move("S")
+                games.append(current_game)
+                current_game = copy.deepcopy(self)
+            self.rotate("cw")
+            current_game.rotate("cw")
 
-    def update_score(self, block_size=BLOCK_SIZE):
+    def coastline_length(self):
+        """Calculate the length of all the sides of bricks and the grid.
+        Potential metric for grid cleanness."""
+        coast_len = 0
+        for (row, col) in self.field:
+            if self.field[row][col] is not None:
+                try:
+                    if self.field[row - 1][col] is None:
+                        coast_len += 1
+                except IndexError:
+                    pass
+                try:
+                    if self.field[row][col - 1] is None:
+                        coast_len += 1
+                except IndexError:
+                    pass
+                try:
+                    if self.field[row][col + 1] is None:
+                        coast_len += 1
+                except IndexError:
+                    pass
+                try:
+                    if self.field[row + 1][col] is None:
+                        coast_len += 1
+                except IndexError:
+                    pass
+            else:
+                if col == 0 or col == self.width - 1:
+                    coast_len += 1
+        return coast_len
 
-        pygame.draw.rect(screen, SCREEN_COLOR, pygame.Rect(block_size,
-                                                           block_size * (self.height + 2),
-                                                           self.width * block_size,
-                                                           3 * block_size))
-        score_font = pygame.font.SysFont("Montserrat", block_size // 2, bold=True)
-        score_text = score_font.render("PTS: ", True, TEXT_COLOR)
-        screen.blit(score_text, (block_size * (2 * self.width // 3 + 2), block_size * (self.height + 2)))
-        pygame.display.update()
+    def max_height(self):
+        """Height of the tallest column in the grid."""
+        for row in range(self.height):
+            for col in range(self.width):
+                if self.field[row][col] is not None:
+                    return self.height - row
+        return 0
 
-        score_value = score_font.render(str(self.score), True, TEXT_COLOR)
-        screen.blit(score_value, (block_size * (2 * self.width // 3 + 3), block_size * (self.height + 2)))
-        pygame.display.update()
+    def count_deep_valleys(self):
+        """Count valleys of depth >= 3, where I-shape tetromino is needed to fill them.
+        More than 1 is unwanted."""
+        previous_row_height = None
+        current_row_height = None
+        deep_valleys = 0
+        for col in range(self.width):
+            for row in range(self.height):
+                if self.field[row][col] is not None:
+                    if previous_row_height is None:
+                        previous_row_height = self.height - row
+                        break
+                    else:
+                        current_row_height = self.height - row
+                    if abs(current_row_height - previous_row_height) >= 3:
+                        deep_valleys += 1
+                    previous_row_height = current_row_height
+                    break
+        return deep_valleys
 
-        lvl_value = score_font.render(str(self.level), True, TEXT_COLOR)
-        screen.blit(lvl_value, (block_size * (self.width // 3 + 3), block_size * (self.height + 2)))
-        pygame.display.update()
-
-        next_text = score_font.render("Next: ", True, TEXT_COLOR)
-        screen.blit(next_text, (block_size, block_size * (self.height + 2)))
-        pygame.display.update()
-
-        lvl_text = score_font.render("LVL:", True, TEXT_COLOR)
-        screen.blit(lvl_text, (block_size * (self.width // 3 + 2), block_size * (self.height + 2)))
-        pygame.display.update()
-
-        pygame.draw.rect(screen, SCREEN_COLOR, pygame.Rect(block_size * 2,
-                                                           block_size * (self.height + 1.5),
-                                                           2 * block_size,
-                                                           2 * block_size))
-        self.show_brick(block_size * 2, int(block_size * (self.height + 1.5)), block_size // 2)
-
-        pass
-
-    def show_brick(self, left_offset, top_offset, size):
-        match self.S[-1]:
-            case "I":
-                for offset in range(4):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset + size,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-
-            case "O":
-                for offset in range(2):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-                for offset in range(2):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset + size,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-            case "T":
-                pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + size,
-                                                                         top_offset,
-                                                                         size - DIVIDER,
-                                                                         size - DIVIDER))
-                for offset in range(3):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset + size,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-            case "S":
-                for offset in range(2):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + (offset + 1) * size,
-                                                                             top_offset,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-                for offset in range(2):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset + size,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-            case "Z":
-                for offset in range(2):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-                for offset in range(2):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + (offset + 1) * size,
-                                                                             top_offset + size,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-            case "L":
-                pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + 2 * size,
-                                                                         top_offset,
-                                                                         size - DIVIDER,
-                                                                         size - DIVIDER))
-                for offset in range(3):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset + size,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-            case "J":
-                pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset,
-                                                                         top_offset,
-                                                                         size - DIVIDER,
-                                                                         size - DIVIDER))
-                for offset in range(3):
-                    pygame.draw.rect(screen, COLORS[self.S[-1]], pygame.Rect(left_offset + offset * size,
-                                                                             top_offset + size,
-                                                                             size - DIVIDER,
-                                                                             size - DIVIDER))
-        return None
-
-    # Find the squares that the active brick will take up if it drops from current position.
-    def ghost_brick(self, squares=[]):
-        if squares:
-            drop_squares = copy.deepcopy(squares)
-        else:
-            drop_squares = copy.deepcopy(self.active_squares)
-        temp_squares = []
-        while True:
-            for [i, j] in drop_squares:
-                if i + 1 >= self.height or self.field[i + 1][j] is not None:
-                    return drop_squares
-                else:
-                    temp_squares.append([i + 1, j])
-            drop_squares = copy.deepcopy(temp_squares)
-            temp_squares = []
-
-    def kickback(self, ideal_rot):
-
-        # If correct, don't change
-        if self.check_valid(ideal_rot):
-            return ideal_rot
-        # Else, try moving right, then left, then up and down
-        else:
-            right = [[i, j + 1] for [i, j] in ideal_rot]
-            if self.check_valid(right):
-                self.active.loc[1] += 1
-                return right
-            left = [[i, j - 1] for [i, j] in ideal_rot]
-            if self.check_valid(left):
-                self.active.loc[1] -= 1
-                return left
-            up = [[i - 1, j] for [i, j] in ideal_rot]
-            if self.check_valid(up):
-                self.active.loc[0] -= 1
-                return up
-            down = [[i + 1, j] for [i, j] in ideal_rot]
-            if self.check_valid(down):
-                self.active.loc[0] += 1
-                return down
-            if self.active.shape == "I":
-                right2 = [[i, j + 2] for [i, j] in ideal_rot]
-                if self.check_valid(right2):
-                    self.active.loc[1] += 2
-                    return right2
-                left2 = [[i, j - 2] for [i, j] in ideal_rot]
-                if self.check_valid(left2):
-                    self.active.loc[1] -= 2
-                    return left2
-                up2 = [[i - 2, j] for [i, j] in ideal_rot]
-                if self.check_valid(up2):
-                    self.active.loc[0] -= 2
-                    return up2
-                down2 = [[i + 2, j] for [i, j] in ideal_rot]
-                if self.check_valid(down2):
-                    self.active.loc[0] += 2
-                    return down2
-            return None
-
-    def check_valid(self, piece):
-        for [i, j] in piece:
-            if (i < 0) or (i >= self.height) or (j < 0) or (j >= self.width) or (self.field[i][j] is not None):
-                return False
-        return True
+    def count_holes(self):
+        """First version counts overhangs as holes as well, they are both to be avoided."""
+        holes = 0
+        for (i, j) in self.field:
+            try:
+                if self.field[i][j] is None and self.field[i - 1][j] is not None:
+                    holes += 1
+            except IndexError:
+                pass
+        return holes
 
 
-
-# Tetrominos don't exist until they are on the board. The stack of "next brick" is just symbols.
 class Tetromino:
 
-    def __init__(self, shape, board):
+    def __init__(self, shape, board, fields=None, loc=None):
+        """Sets spawning point and rotation center of a tetromino.
+        If the spawn point is occupied, game over"""
         self.shape = shape
-        match shape:
-            case "I":
-                self.loc = [0, board.width // 2 - 1]
-            case "O":
-                self.loc = [0, board.width // 2 - 1]
-            case "S":
-                self.loc = [0, board.width // 2 - 1]
-            case "Z":
-                self.loc = [0, board.width // 2 - 1]
-            case "T":
-                self.loc = [1, board.width // 2 - 1]
-            case "J":
-                self.loc = [1, board.width // 2 - 1]
-            case "L":
-                self.loc = [1, board.width // 2 - 1]
+        self.fields = fields
+        if not loc:
+            match shape:
+                case "I":
+                    self.loc = [0, board.width // 2 - 1]
+                case "O":
+                    self.loc = [0, board.width // 2 - 1]
+                case "S":
+                    self.loc = [0, board.width // 2 - 1]
+                case "Z":
+                    self.loc = [0, board.width // 2 - 1]
+                case "T":
+                    self.loc = [1, board.width // 2 - 1]
+                case "J":
+                    self.loc = [1, board.width // 2 - 1]
+                case "L":
+                    self.loc = [1, board.width // 2 - 1]
+        else:
+            self.loc = loc
+        if not self.fields:
+            match self.shape:
+                case "I":
+                    self.fields = [[self.loc[0], self.loc[1] + i] for i in range(-1, 3)]
+                case "O":
+                    self.fields = [[self.loc[0], self.loc[1]],
+                                   [self.loc[0] + 1, self.loc[1]],
+                                   [self.loc[0], self.loc[1] + 1],
+                                   [self.loc[0] + 1, self.loc[1] + 1]]
+                case "T":
+                    self.fields = [[self.loc[0], self.loc[1]],
+                                   [self.loc[0] - 1, self.loc[1]],
+                                   [self.loc[0], self.loc[1] + 1],
+                                   [self.loc[0], self.loc[1] - 1]]
+                case "S":
+                    self.fields = [[self.loc[0], self.loc[1]],
+                                   [self.loc[0], self.loc[1] + 1],
+                                   [self.loc[0] + 1, self.loc[1]],
+                                   [self.loc[0] + 1, self.loc[1] - 1]]
+                case "Z":
+                    self.fields = [[self.loc[0], self.loc[1]],
+                                   [self.loc[0], self.loc[1] - 1],
+                                   [self.loc[0] + 1, self.loc[1]],
+                                   [self.loc[0] + 1, self.loc[1] + 1]]
+                case "L":
+                    self.fields = [[self.loc[0], self.loc[1]],
+                                   [self.loc[0], self.loc[1] - 1],
+                                   [self.loc[0], self.loc[1] + 1],
+                                   [self.loc[0] - 1, self.loc[1] + 1]]
+                case "J":
+                    self.fields = [[self.loc[0], self.loc[1]],
+                                   [self.loc[0], self.loc[1] - 1],
+                                   [self.loc[0], self.loc[1] + 1],
+                                   [self.loc[0] - 1, self.loc[1] - 1]]
+                case _:
+                    raise Exception("Invalid shape.")
+        else:
+            self.fields = fields
 
-    def rotate(self):
-        pass
-
-    def drop(self):
-        pass
-
-    def move(self, direction):
-        pass
-
-
-def clear():
-    os.system('cls')
-
-
-class TestTetris(unittest.TestCase):
-
-    def test_rotation(self):
-        pass
-
-
-def test_time():
-    game = Board(10, 10)
-    for i in range(50):
-        print(game)
-        game.rotate("cw")
-        game.progress_time()
-        time.sleep(0.4)
-        clear()
-
-
-def test_drawing():
-    pygame.init()
-    screen = pygame.display.set_mode((500, 500))
-    pygame.display.set_caption("Tetris")
-    run = True
-    screen.fill(SCREEN_COLOR)
-    font = pygame.font.SysFont("Calibri", 70, bold=True)
-    label = font.render("HA!", True, TEXT_COLOR)
-    screen.blit(label, (10, 30))
-    pygame.display.update()
-    BLOCK_SIZE = 5
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    raise Exception("QUIT GAME")
-            pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE, BLOCK_SIZE, 10 * BLOCK_SIZE,
-                                                                   10 * BLOCK_SIZE))
-            pygame.display.update()
+        # Check if game over.
+        for (row, col) in self.fields:
+            if board.field[row][col] is not None:
+                raise Exception("GAME OVER")
 
 
 def play():
+    """Event loop, DAS, lock delay and similar."""
+    # consider adding a small timer within which no new button can be drop (or rotate) again
     pygame.init()
-    done = False
-    clock = pygame.time.Clock()
-    fps = 25
     counter = 0
     game = Board(HEIGHT, WIDTH)
 
-    screen.fill(SCREEN_COLOR)
-
-    for i in range(game.height):
-        for j in range(game.width):
-            pygame.draw.rect(screen, BACKGROUND_COLOR, pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1),
-                                                                   BLOCK_SIZE - DIVIDER,
-                                                                   BLOCK_SIZE - DIVIDER))
-
-    draw_piece(game.ghost_brick(), GHOST_COLORS[game.active.shape])
-
-    pygame.display.update()
-    game.update_score()
+    drawTetris.field(SCREEN, game)
+    drawTetris.piece(game, SCREEN, game.active)
     landed_counter = 1
-    start_time = time.time()
+    # start_time = time.time()  // nice to have in time attack modes etc
     loop_time = time.time()
+    last_drop = time.time()
     first_landed = True
+    drop = False
     while True:
 
         counter += 1
         counter %= 100000
         landed_counter %= 100000
-        if time.time() - loop_time > time_to_drop(game.level) and game.check_landed() is False:
+        if (time.time() - loop_time > game.time_to_drop(game.level) and game.check_landed() is False) or drop:
             game.progress_time()
             loop_time = time.time()
+            first_landed = True
+            drop = False
         if game.check_landed() and first_landed:
             first_landed = False
             landed_time = time.time()
@@ -637,7 +501,11 @@ def play():
                 if event.key in CONTROLS["down"]:
                     game.move("D")
                 if event.key in CONTROLS["drop"]:
+                    if time.time() - last_drop < SPACE_DELAY:
+                        break
                     game.move("S")
+                    last_drop = time.time()
+                    drop = True
                     break
                 pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
                 if event.key == pygame.K_ESCAPE:
@@ -647,77 +515,21 @@ def play():
 
         print(game)
 
-        for i in range(game.height):
-            for j in range(game.width):
-                if game.field[i][j] is not None:
-                    pygame.draw.rect(screen, COLORS[game.field[i][j]],
-                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                                 BLOCK_SIZE - 1))
-                if [i, j] in game.active_squares:
-                    pygame.draw.rect(screen, COLORS[game.active.shape],
-                                     pygame.Rect(BLOCK_SIZE * (j + 1), BLOCK_SIZE * (i + 1), BLOCK_SIZE - 1,
-                                                 BLOCK_SIZE - 1))
-                pygame.display.update()
-
-
-def old_rg():
-    s = []
-    sz_counter = 0
-    i_counter = 0
-    s.append(START_SHAPES[random.randrange(0, len(START_SHAPES))])
-    for i in range(MAX_TETRO):
-        if sz_counter < MAX_SZ and i_counter < MAX_NO_I:
-            new_shape = SHAPES[random.randrange(0, len(SHAPES))]
-        elif i_counter >= MAX_NO_I:
-            new_shape = 'I'
-        elif sz_counter >= MAX_SZ:
-            new_shape = NON_SNAKE_SHAPES[random.randrange(0, len(NON_SNAKE_SHAPES))]
-        if new_shape in ['S', 'Z']:
-            sz_counter += 1
-        else:
-            sz_counter = 0
-        if new_shape != 'I':
-            i_counter += 1
-        else:
-            i_counter = 0
-        s.append(new_shape)
-    return s
-
-
-def random_generator(shapes=SHAPES, start_shapes=START_SHAPES, max_tetro=MAX_TETRO):
-    s = [start_shapes[random.randrange(0, len(start_shapes))]]
-    while len(s) < max_tetro:
-        bag = copy.deepcopy(shapes)
-        while len(bag) > 0:
-            new = bag[random.randrange(0, len(bag))]
-            s.append(new)
-            bag.remove(new)
-    return s
-
-
-def draw_rect(i, j, surface, color, size=BLOCK_SIZE, divider=DIVIDER):
-    pygame.draw.rect(surface, color,
-                     pygame.Rect(size * (j + 1), size * (i + 1), size - divider,
-                                 size - divider))
-
-
-def time_to_drop(lvl):
-    return (0.8 - lvl * 0.007) ** lvl
+        drawTetris.event_loop_update(game, SCREEN)
 
 
 if __name__ == "__main__":
+    """Initialize game and call the event loop function."""
     pygame.font.init()
-    screen_w = (WIDTH + 2) * BLOCK_SIZE
-    screen_h = (HEIGHT + 4) * BLOCK_SIZE
-    screen = pygame.display.set_mode((screen_w, screen_h))
+    SCREEN_W = (WIDTH + 2) * drawTetris.BLOCK_SIZE
+    SCREEN_H = (HEIGHT + 4) * drawTetris.BLOCK_SIZE
+    SCREEN = pygame.display.set_mode((SCREEN_W, SCREEN_H))
+
+    # maybe unnecessary
     pygame.display.set_caption("Tetris")
+
     run = True
-    screen.fill(SCREEN_COLOR)
-    font = pygame.font.SysFont("Montserrat", BLOCK_SIZE, bold=False)
-    label = font.render("Press any key to play", True, TEXT_COLOR)
-    label_rect = label.get_rect(center=(screen_w / 2, screen_h / 2))
-    screen.blit(label, label_rect)
-    pygame.display.update()
+    drawTetris.welcome_screen(SCREEN, SCREEN_W, SCREEN_H)
     while run:
         for event_ in pygame.event.get():
             if event_.type == pygame.QUIT:
@@ -725,3 +537,8 @@ if __name__ == "__main__":
             if event_.type == pygame.KEYDOWN:
                 play()
     pygame.quit()
+
+
+def loss(game):
+    """Evaluate how well a game is going.
+    Possible parameters: points, coastline, max height, height variance, monotonicity"""
