@@ -13,17 +13,17 @@ MAX_T = 10000
 WIDTH = 10
 HEIGHT = 20
 DAS = 1 / 5
-AFTER_DAS = 1 / 40
+AFTER_DAS = 1 / 60
 LOCK_DELAY = 0.5
 CONTROLS = {"left": {pygame.K_LEFT}, "right": {pygame.K_RIGHT}, "down": {pygame.K_DOWN},
             "rotate_cw": {pygame.K_x, pygame.K_UP}, "rotate_ccw": {pygame.K_z},
             "drop": {pygame.K_SPACE}}
-SPACE_DELAY = 0.5
+SPACE_DELAY = 0.3
 ASCII = False  # Toggles whether an ASCII version runs in the terminal as well
 
 
 class Board:
-    def __init__(self, n, m):
+    def __init__(self, n, m, visual=True):
         self.width = m
         self.height = n
         self.field = [[None for i in range(m)] for j in range(n)]
@@ -35,6 +35,8 @@ class Board:
         self.rows_total = 0
         self.rows_current = 0
         self.level = 0
+        self.game_over = False
+        self.visual = visual
 
     def progress_time(self):
         if self.check_landed():
@@ -47,10 +49,12 @@ class Board:
                 self.field[x][y] = self.active.shape
             self.delete_full_rows()
             self.active = Tetromino(self.S.pop(), self)
-            drawTetris.update_score(self, SCREEN)
-            drawTetris.piece(self, SCREEN, self.active, ghost=False)
+            if self.visual:
+                drawTetris.update_score(self, SCREEN)
+                drawTetris.piece(self, SCREEN, self.active, ghost=False)
             self.ghost = self.ghost_brick()
-            drawTetris.piece(self, SCREEN, self.ghost, ghost=True)
+            if self.visual:
+                drawTetris.piece(self, SCREEN, self.ghost, ghost=True)
         else:
             self.move("D")
         self.t += 1
@@ -78,7 +82,8 @@ class Board:
     def gravity(self, deleted_row):
         """Make the bricks above the deleted rows fall into place."""
         for row in range(deleted_row, 0, -1):
-            drawTetris.update_row(self, row, SCREEN)
+            if self.visual:
+                drawTetris.update_row(self, row, SCREEN)
             self.field[row] = self.field[row - 1]
         self.field[0] = [None for i in range(self.width)]
 
@@ -162,10 +167,13 @@ class Board:
 
         new_active_piece = Tetromino(self.active.shape, self,
                                      fields=new_active, loc=self.active.loc)
-        drawTetris.update_piece(self, SCREEN, new_active_piece)
+        if self.visual:
+            drawTetris.update_piece(self, SCREEN, new_active_piece)
         self.active = new_active_piece
         new_ghost = self.ghost_brick()
-        drawTetris.update_piece(self, SCREEN, new_ghost, ghost=True)
+        if self.visual:
+            drawTetris.update_piece(self, SCREEN, new_ghost, ghost=True)
+
         self.ghost = new_ghost
         return True
 
@@ -196,10 +204,12 @@ class Board:
 
         new_active_piece = Tetromino(self.active.shape, self,
                                      fields=new_active, loc=self.active.loc)
-        drawTetris.update_piece(self, SCREEN, new_active_piece)
+        if self.visual:
+            drawTetris.update_piece(self, SCREEN, new_active_piece)
         self.active = new_active_piece
         new_ghost = self.ghost_brick()
-        drawTetris.update_piece(self, SCREEN, new_ghost, ghost=True)
+        if self.visual:
+            drawTetris.update_piece(self, SCREEN, new_ghost, ghost=True)
         self.ghost = new_ghost
         return None
 
@@ -294,22 +304,39 @@ class Board:
         """Return all possible options where a piece can be dropped.
         First implementation should be simple, not considering overhangs, T-spins etc,
         just dropping any rotation of piece from any position on top."""
-        while self.move("L"):
-            pass
+        rotations = 0
+        match self.active.shape:
+            case "I":
+                rotations = 2
+            case "O":
+                rotations = 1
+            case "S":
+                rotations = 2
+            case "Z":
+                rotations = 2
+            case _:
+                rotations = 4
         games = []
         current_game = copy.deepcopy(self)
         start_brick = current_game.active
-        for i in range(4):
+        for i in range(rotations):
+            while current_game.move("L"):
+                self.move("L")
+            current_game.active.fields = [(row, col - 1) for (row, col) in current_game.active.fields]
+            current_game.active.loc[1] -= 1
+            self.active.fields = current_game.active.fields
+            self.active.loc = current_game.active.loc
             current_game.move("S")
             games.append(current_game)
-            current_game = copy.deepcopy(self)
             while current_game.move("R"):
                 self.move("R")
                 current_game.move("S")
                 games.append(current_game)
                 current_game = copy.deepcopy(self)
             self.rotate("cw")
-            current_game.rotate("cw")
+            current_game = copy.deepcopy(self)
+        return games
+
 
     def coastline_length(self):
         """Calculate the length of all the sides of bricks and the grid.
@@ -381,6 +408,9 @@ class Board:
                 pass
         return holes
 
+    def __bool__(self):
+        return True
+
 
 class Tetromino:
 
@@ -449,7 +479,7 @@ class Tetromino:
         # Check if game over.
         for (row, col) in self.fields:
             if board.field[row][col] is not None:
-                raise Exception("GAME OVER")
+                board.game_over = True
 
 
 def play():
@@ -469,6 +499,8 @@ def play():
     drop = False
     while True:
 
+        if game.game_over is True:
+            return game
         counter += 1
         counter %= 100000
         landed_counter %= 100000
@@ -488,8 +520,9 @@ def play():
         for event in pygame.event.get():
             pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
             if event.type == pygame.QUIT:
-                break
+                return game
             if event.type == pygame.KEYDOWN:
+                landed_time = time.time()
                 if event.key in CONTROLS["rotate_cw"]:
                     game.rotate("cw")
                 if event.key in CONTROLS["rotate_ccw"]:
@@ -507,16 +540,30 @@ def play():
                     last_drop = time.time()
                     drop = True
                     break
-                pygame.key.set_repeat(int(DAS * 1000), int(AFTER_DAS * 1000))
-                if event.key == pygame.K_ESCAPE:
-                    game.__init__(20, 10)
-                if event.key == pygame.K_q:
-                    raise Exception("QUIT GAME")
+                if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+                    game.game_over = True
 
         if ASCII:
             print(game)
+        if game.visual:
+            drawTetris.event_loop_update(game, SCREEN)
 
-        drawTetris.event_loop_update(game, SCREEN)
+
+def test_options():
+    game = Board(HEIGHT, WIDTH, visual=False)
+    games = game.all_options()
+    for game_ in games:
+        print(game_)
+        print(game_.active.fields)
+
+
+def loss(game):
+    """Evaluate how well a game is going.
+    Possible parameters: points, coastline, max height, height variance, monotonicity"""
+
+
+#test_options()
+#exit()
 
 
 if __name__ == "__main__":
@@ -526,20 +573,27 @@ if __name__ == "__main__":
     SCREEN_H = (HEIGHT + 4) * drawTetris.BLOCK_SIZE
     SCREEN = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 
-    # maybe unnecessary
     pygame.display.set_caption("Tetris")
 
-    run = True
+    end = None
     drawTetris.welcome_screen(SCREEN, SCREEN_W, SCREEN_H)
-    while run:
+    while not end:
         for event_ in pygame.event.get():
             if event_.type == pygame.QUIT:
-                run = False
+                end = True
             if event_.type == pygame.KEYDOWN:
-                play()
-    pygame.quit()
+                end = play()
+                break
+
+    drawTetris.game_over_screen(SCREEN, SCREEN_W, SCREEN_H, end)
+    pygame.init()
+    run = True
+    while run:
+        for _event in pygame.event.get():
+            if _event.type == pygame.KEYDOWN:
+                if _event.key == pygame.K_q or _event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    run = False
 
 
-def loss(game):
-    """Evaluate how well a game is going.
-    Possible parameters: points, coastline, max height, height variance, monotonicity"""
+

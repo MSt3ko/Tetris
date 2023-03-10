@@ -15,6 +15,7 @@ DIVIDER = 1
 PTS = "PTS: "
 NEXT = "Next: "
 LVL = "LVL: "
+GAME_OVER = "GAME OVER, press Esc to exit."
 
 
 def square(game, coord, surface, color=None, size=BLOCK_SIZE, div=DIVIDER):
@@ -26,9 +27,11 @@ def square(game, coord, surface, color=None, size=BLOCK_SIZE, div=DIVIDER):
                                  size - div))
     return None
 
+
 def square_fancy(game, coord, surface, shape, ghost=False, size=BLOCK_SIZE, div=DIVIDER):
     """We can't simply draw a square with a color - shapes have a predetermined color set."""
     pass
+
 
 def piece(game, surface, tetromino, ghost=False):
     """draw a tetromino"""
@@ -207,6 +210,21 @@ def welcome_screen(screen, width, height):
     label = font.render(GREETING, True, TEXT_COLOR)
     label_rect = label.get_rect(center=(width / 2, height / 2))
     screen.blit(label, label_rect)
+    pygame.display.update()
+
+
+def game_over_screen(screen, width, height, game, block_size=BLOCK_SIZE):
+    screen.fill(SCREEN_COLOR)
+    font = pygame.font.SysFont(FONT, BLOCK_SIZE, bold=False)
+    label = font.render(GAME_OVER, True, TEXT_COLOR)
+    label_rect = label.get_rect(center=(width / 2, height / 2))
+    screen.blit(label, label_rect)
+
+
+    score_value = font.render(LVL + " " + str(game.level + 1) + "    " + PTS + " " + str(game.score), True, TEXT_COLOR)
+    score_rect = score_value.get_rect(center=(width / 2, height * 2 / 3))
+    screen.blit(score_value, score_rect)
+
     pygame.display.update()
 
 
