@@ -3,6 +3,7 @@ import time
 import pygame
 import drawTetris
 import copy
+import tensorflow as tf
 
 SHAPES = ('I', 'L', 'J', 'T', 'O', 'S', 'Z')
 NON_SNAKE_SHAPES = ('I', 'L', 'J', 'T', 'O')
@@ -19,7 +20,7 @@ CONTROLS = {"left": {pygame.K_LEFT}, "right": {pygame.K_RIGHT}, "down": {pygame.
             "rotate_cw": {pygame.K_x, pygame.K_UP}, "rotate_ccw": {pygame.K_z},
             "drop": {pygame.K_SPACE}}
 SPACE_DELAY = 0.3
-ASCII = False  # Toggles whether an ASCII version runs in the terminal as well
+ASCII = True  # Toggles whether an ASCII version runs in the terminal as well
 
 
 class Board:
@@ -317,24 +318,18 @@ class Board:
             case _:
                 rotations = 4
         games = []
-        current_game = copy.deepcopy(self)
-        start_brick = current_game.active
-        for i in range(rotations):
-            while current_game.move("L"):
-                self.move("L")
-            current_game.active.fields = [(row, col - 1) for (row, col) in current_game.active.fields]
-            current_game.active.loc[1] -= 1
-            self.active.fields = current_game.active.fields
-            self.active.loc = current_game.active.loc
+        game0 = copy.deepcopy(self)
+        for _ in range(rotations):
+            while game0.move("L"):
+                pass
+            current_game = copy.deepcopy(game0)
             current_game.move("S")
             games.append(current_game)
-            while current_game.move("R"):
-                self.move("R")
+            while game0.move("R"):
+                current_game = copy.deepcopy(game0)
                 current_game.move("S")
                 games.append(current_game)
-                current_game = copy.deepcopy(self)
-            self.rotate("cw")
-            current_game = copy.deepcopy(self)
+            game0.rotate("cw")
         return games
 
 
@@ -342,31 +337,32 @@ class Board:
         """Calculate the length of all the sides of bricks and the grid.
         Potential metric for grid cleanness."""
         coast_len = 0
-        for (row, col) in self.field:
-            if self.field[row][col] is not None:
-                try:
-                    if self.field[row - 1][col] is None:
+        for row in range(self.height):
+            for col in range(self.width):
+                if self.field[row][col] is not None:
+                    try:
+                        if self.field[row - 1][col] is None:
+                            coast_len += 1
+                    except IndexError:
+                        pass
+                    try:
+                        if self.field[row][col - 1] is None:
+                            coast_len += 1
+                    except IndexError:
+                        pass
+                    try:
+                        if self.field[row][col + 1] is None:
+                            coast_len += 1
+                    except IndexError:
+                        pass
+                    try:
+                        if self.field[row + 1][col] is None:
+                            coast_len += 1
+                    except IndexError:
+                        pass
+                else:
+                    if col == 0 or col == self.width - 1:
                         coast_len += 1
-                except IndexError:
-                    pass
-                try:
-                    if self.field[row][col - 1] is None:
-                        coast_len += 1
-                except IndexError:
-                    pass
-                try:
-                    if self.field[row][col + 1] is None:
-                        coast_len += 1
-                except IndexError:
-                    pass
-                try:
-                    if self.field[row + 1][col] is None:
-                        coast_len += 1
-                except IndexError:
-                    pass
-            else:
-                if col == 0 or col == self.width - 1:
-                    coast_len += 1
         return coast_len
 
     def max_height(self):
@@ -400,11 +396,11 @@ class Board:
     def count_holes(self):
         """First version counts overhangs as holes as well, they are both to be avoided."""
         holes = 0
-        for (i, j) in self.field:
-            try:
-                if self.field[i][j] is None and self.field[i - 1][j] is not None:
+        for row in range(1, self.height):
+            for col in range(self.width):
+                if self.field[row][col] is None and self.field[row - 1][col] is not None:
+                    print(row, " ", col)
                     holes += 1
-            except IndexError:
                 pass
         return holes
 
@@ -545,6 +541,10 @@ def play():
 
         if ASCII:
             print(game)
+            print("Coastline len: ", game.coastline_length())
+            print("max height: ", game.max_height())
+            print("deep val: ", game.count_deep_valleys())
+            print("holes: ", game.count_holes())
         if game.visual:
             drawTetris.event_loop_update(game, SCREEN)
 
@@ -562,6 +562,8 @@ def loss(game):
     Possible parameters: points, coastline, max height, height variance, monotonicity"""
 
 
+#print(tf.config.list_physical_devices('GPU'))
+#print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 #test_options()
 #exit()
 
