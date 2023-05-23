@@ -1,5 +1,5 @@
 # Tetris
-This is my (Marijan Steko) Tetris implementation that started as a passion project and an addition to the portfolio. It's mostly meant to serve as programming practice, but a desire to improve led me to fine tune many details to make the playing experience smoother. I've also come to greatly appreciate Tetris as a game, so I wanted to make something that works well, at least for casual players. Here's a preview:
+This is my Tetris implementation that started as a passion project and an addition to the portfolio. It's mostly meant to serve as programming practice, but a desire to improve led me to fine tune many details to make the playing experience smoother. I've also come to greatly appreciate Tetris as a game, so I wanted to make something that works well, at least for casual players. Here's a preview:
 
 ![Gameplay gif](https://github.com/MSt3ko/Tetris/blob/master/TetrisDemo.gif "Gameplay")
 
